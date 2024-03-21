@@ -16,7 +16,7 @@ np.random.seed(1024)
 def LoadBatch(filename):
 	""" Copied from the dataset website """
 	import pickle5 as pickle 
-    
+    # import pickle
 	with open('data/'+ filename, 'rb') as f:
 		dict=pickle.load(f, encoding='bytes')
 	f.close()
@@ -63,11 +63,9 @@ def ComputeGradsNumSlow(X, Y, P, W, b, lamda, h):
 		b_try = np.array(b)
 		b_try[i] -= h
 		c1 = ComputeCost(X, Y, W, b_try, lamda)
-
 		b_try = np.array(b)
 		b_try[i] += h
 		c2 = ComputeCost(X, Y, W, b_try, lamda)
-
 		grad_b[i] = (c2-c1) / (2*h)
 
 	for i in range(W.shape[0]):
@@ -110,15 +108,12 @@ def save_as_mat(data, name="model"):
 ## Functions from scratch 
 ## Yuningw 
 ##########################################
-	
 def load_data():
 	"""
 	Load Data from the binary file using Pickle 
-	
+
 	Returns: 
-
 		X	: Array with shape of 
-
 	"""
 	import os 
 
@@ -130,13 +125,13 @@ def load_data():
 	print(f"Type of data: {type(dt)}")
 	print(f"The key of diction:\n{dt.keys()}")
 
-	X = np.array(dt[b'data']).astype(np.float32)
-	y = np.array(dt[b'labels']).astype(np.float32).reshape(-1,1)
-
-	labels 	 = dt[b'batch_label']
+	X 		= np.array(dt[b'data']).astype(np.float32)
+	y 		= np.array(dt[b'labels']).astype(np.float32).reshape(-1,1)
+	labels 	= dt[b'batch_label']
+	print(f"The filename =\t{dt[b'filenames'][:10]}")
 	print(f"The data shape = \t {X.shape}")
-	print(f"The One-Hot label shape = \t {y.shape}")
-	print(f"The label shape = \t {len(labels)}")
+	print(f"The One-Hot label shape = \t {y.shape}, here are {len(np.unique(y))} Labels")
+	print(f"The label= \t {labels}")
 	return X, y, labels
 
 def norm_scaling(X):
@@ -155,28 +150,23 @@ def norm_scaling(X):
 	print(f"The Mean={mean_x.shape}; Std = {std_x.shape}")	
 	return (X-mean_x)/std_x, mean_x, std_x
 
-def init_WB(n:int,d:int):
+def init_WB(K:int,d:int,):
 	"""
 	Initialising The W&B, we use normal distribution as an initialisation strategy 
-
 	Args:
-		n	:	integer of the size of sample 
-		d 	:	integer of the size of feature space 
-	
-	Returns:
+		K	:	integer of the size of feature size
+		d 	:	integer of the size of label size
 
+	Returns:
 		W	:	Numpy Array as a matrix of Weight 
 		b	:	Numpy Array as a vector of bias
 	"""
+
 	mu = 0; sigma = 0.01
-	W = np.random.normal(mu,sigma,size=(n,d))
+	W = np.random.normal(mu,sigma,size=(K,d))
 	b = np.random.normal(mu,sigma,size=(d,1))
-	
+	print(f"INFO:W&B init: W={W.shape}, b={b.shape}")
 	return W,b
-	
-
-
-
 
 def ComputeCost():
 	return
@@ -186,11 +176,24 @@ def ComputeCost():
 def main():
 	
 	X, y, labels = load_data()
+
+	# Define the feature size and label size
+	K = X.shape[-1]; d = len(np.unique(y))
+	# Scaling the data
 	X,_,_ = norm_scaling(X)
+	
+	# Initialisation of the
+	W,b   = init_WB(K,d)
+	
 	return
 
 
+
+
+##########################################
+## Run the programme DOWN Here:
+##########################################
 if __name__ == "__main__":
-	
+
 	main()
 
