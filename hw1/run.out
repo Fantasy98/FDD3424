@@ -1,0 +1,7 @@
+Existing Data: ['data_batch_1', 'data_batch_2', 'data_batch_5', 'data_batch_4', 'data_batch_3']
+Type of data: <class 'dict'>
+The key of diction:
+dict_keys([b'batch_label', b'labels', b'data', b'filenames'])
+The data shape = 	 (10000, 3072)
+The One-Hot label shape = 	 (10000,)
+The label shape = 	 21
