@@ -1,7 +1,114 @@
-Existing Data: ['data_batch_1', 'data_batch_2', 'data_batch_5', 'data_batch_4', 'data_batch_3']
-Type of data: <class 'dict'>
-The key of diction:
-dict_keys([b'batch_label', b'labels', b'data', b'filenames'])
-The data shape = 	 (10000, 3072)
-The One-Hot label shape = 	 (10000,)
-The label shape = 	 21
+##############################
+Testing Functions:
+X: 	 (3072, 10000)
+Y: 	 (10000,), here are 10 Labels
+Global K=10, d=3072
+INFO: Complete Normalisation
+INFO:W&B init: W=(10, 3072), b=(10, 1)
+INFO: Test Pred=(10, 2)
+INFO: The loss = 2.222259658316694
+INFO:Accuracy Score=12.08%
+INFO: Test Pred=(10, 1)
+INFO: Shape of gW = (10, 3072), gb = (10, 1)
+Start Training
+At Epoch =1, Cost Func =2.117513492624342, acc = 40.38
+At Epoch =2, Cost Func =2.0417881177179935, acc = 43.88
+At Epoch =3, Cost Func =1.9960329470258178, acc = 49.95
+At Epoch =4, Cost Func =1.9640146873737108, acc = 57.730000000000004
+At Epoch =5, Cost Func =1.9399900561302914, acc = 63.580000000000005
+At Epoch =6, Cost Func =1.9210809031399094, acc = 65.18
+At Epoch =7, Cost Func =1.9056755032217407, acc = 67.78999999999999
+At Epoch =8, Cost Func =1.8927232058629764, acc = 71.28999999999999
+At Epoch =9, Cost Func =1.8816821770582992, acc = 74.00999999999999
+At Epoch =10, Cost Func =1.8720416746748796, acc = 75.49
+At Epoch =11, Cost Func =1.8635609865784697, acc = 76.14999999999999
+At Epoch =12, Cost Func =1.855944952733976, acc = 78.66
+At Epoch =13, Cost Func =1.8491022835398911, acc = 78.35
+At Epoch =14, Cost Func =1.8428188761175153, acc = 78.75
+At Epoch =15, Cost Func =1.8370957540488009, acc = 80.51
+At Epoch =16, Cost Func =1.8317694473162875, acc = 79.25
+At Epoch =17, Cost Func =1.826803268357386, acc = 80.32000000000001
+At Epoch =18, Cost Func =1.8221682003612234, acc = 81.78999999999999
+At Epoch =19, Cost Func =1.8177681044215794, acc = 81.21000000000001
+At Epoch =20, Cost Func =1.8136723384643818, acc = 82.52000000000001
+At Epoch =21, Cost Func =1.809802824870371, acc = 83.41
+At Epoch =22, Cost Func =1.8060815862390183, acc = 82.50999999999999
+At Epoch =23, Cost Func =1.8025874267392519, acc = 82.22
+At Epoch =24, Cost Func =1.7991954660323721, acc = 82.11
+At Epoch =25, Cost Func =1.7959721366308636, acc = 82.57
+At Epoch =26, Cost Func =1.7929895774441988, acc = 83.14
+At Epoch =27, Cost Func =1.7899351775011738, acc = 82.46
+At Epoch =28, Cost Func =1.7871040511969003, acc = 81.45
+At Epoch =29, Cost Func =1.7843660839359128, acc = 81.28
+At Epoch =30, Cost Func =1.781687367641785, acc = 83.78999999999999
+At Epoch =31, Cost Func =1.7791316546890659, acc = 84.8
+At Epoch =32, Cost Func =1.7766627219342446, acc = 83.05
+At Epoch =33, Cost Func =1.7742498949313001, acc = 83.19
+At Epoch =34, Cost Func =1.7719102285140182, acc = 84.71
+At Epoch =35, Cost Func =1.7696561628088232, acc = 84.5
+At Epoch =36, Cost Func =1.7674681299338888, acc = 83.78
+At Epoch =37, Cost Func =1.765333569334276, acc = 83.99
+At Epoch =38, Cost Func =1.7632692506832937, acc = 81.58999999999999
+At Epoch =39, Cost Func =1.7611988461322121, acc = 83.46000000000001
+At Epoch =40, Cost Func =1.7592259875182557, acc = 86.74
+At Epoch =41, Cost Func =1.757300075470571, acc = 84.21
+At Epoch =42, Cost Func =1.7553975201362602, acc = 87.46000000000001
+At Epoch =43, Cost Func =1.7535358233161045, acc = 86.29
+At Epoch =44, Cost Func =1.7517712041467035, acc = 85.33
+At Epoch =45, Cost Func =1.7499740505479666, acc = 85.79
+At Epoch =46, Cost Func =1.7482343297572356, acc = 86.5
+At Epoch =47, Cost Func =1.746524635088999, acc = 86.32
+At Epoch =48, Cost Func =1.744872937869338, acc = 86.13
+At Epoch =49, Cost Func =1.7432405951740784, acc = 86.52
+At Epoch =50, Cost Func =1.741637496925881, acc = 83.52000000000001
+At Epoch =51, Cost Func =1.7400554505460692, acc = 85.77
+At Epoch =52, Cost Func =1.7385371755429384, acc = 86.04
+At Epoch =53, Cost Func =1.736998154863144, acc = 86.49
+At Epoch =54, Cost Func =1.735526598347972, acc = 85.42
+At Epoch =55, Cost Func =1.7340524430615012, acc = 85.96000000000001
+At Epoch =56, Cost Func =1.7326238713571855, acc = 88.27000000000001
+At Epoch =57, Cost Func =1.731191572360996, acc = 87.9
+At Epoch =58, Cost Func =1.7298833052905092, acc = 87.59
+At Epoch =59, Cost Func =1.728444042500003, acc = 84.97
+At Epoch =60, Cost Func =1.7270656704433058, acc = 84.83000000000001
+At Epoch =61, Cost Func =1.725817380474149, acc = 83.77
+At Epoch =62, Cost Func =1.7244341545822248, acc = 87.69
+At Epoch =63, Cost Func =1.72312801411115, acc = 84.7
+At Epoch =64, Cost Func =1.7218571707208867, acc = 87.77000000000001
+At Epoch =65, Cost Func =1.720585095530836, acc = 87.56
+At Epoch =66, Cost Func =1.7193383008692007, acc = 88.32
+At Epoch =67, Cost Func =1.7181384597216576, acc = 87.61
+At Epoch =68, Cost Func =1.7169269960978724, acc = 85.87
+At Epoch =69, Cost Func =1.7157633336935538, acc = 85.52
+At Epoch =70, Cost Func =1.7145429810979673, acc = 87.71
+At Epoch =71, Cost Func =1.713379819037455, acc = 87.48
+At Epoch =72, Cost Func =1.7122419847405261, acc = 85.39999999999999
+At Epoch =73, Cost Func =1.7111142010249052, acc = 87.55
+At Epoch =74, Cost Func =1.709989403101293, acc = 87.16000000000001
+At Epoch =75, Cost Func =1.708904619138191, acc = 87.96000000000001
+At Epoch =76, Cost Func =1.7077758624720292, acc = 87.36
+At Epoch =77, Cost Func =1.7067178749469674, acc = 85.72999999999999
+At Epoch =78, Cost Func =1.7056443027540906, acc = 87.58
+At Epoch =79, Cost Func =1.7045959826261605, acc = 87.15
+At Epoch =80, Cost Func =1.7035680566708125, acc = 87.12
+At Epoch =81, Cost Func =1.7025227105989011, acc = 86.37
+At Epoch =82, Cost Func =1.7015107169892991, acc = 86.98
+At Epoch =83, Cost Func =1.7005654078642198, acc = 88.26
+At Epoch =84, Cost Func =1.699511307343176, acc = 86.39
+At Epoch =85, Cost Func =1.6984902013933676, acc = 87.41
+At Epoch =86, Cost Func =1.6975210421689513, acc = 89.59
+At Epoch =87, Cost Func =1.6965621672984343, acc = 87.35000000000001
+At Epoch =88, Cost Func =1.6956060809294105, acc = 89.42
+At Epoch =89, Cost Func =1.6946499012149765, acc = 87.8
+At Epoch =90, Cost Func =1.6936969959057442, acc = 87.53
+At Epoch =91, Cost Func =1.6927711840092983, acc = 87.92999999999999
+At Epoch =92, Cost Func =1.6918564918173649, acc = 88.21
+At Epoch =93, Cost Func =1.6909736945161915, acc = 87.44
+At Epoch =94, Cost Func =1.690030467757404, acc = 88.29
+At Epoch =95, Cost Func =1.6891565118612335, acc = 88.56
+At Epoch =96, Cost Func =1.6882620262747776, acc = 89.11
+At Epoch =97, Cost Func =1.6874157773676954, acc = 89.68
+At Epoch =98, Cost Func =1.6864983520204722, acc = 89.44
+At Epoch =99, Cost Func =1.685621743288164, acc = 87.71
+At Epoch =100, Cost Func =1.6847623380296668, acc = 89.69
+##############################
