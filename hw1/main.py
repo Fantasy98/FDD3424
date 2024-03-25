@@ -97,16 +97,16 @@ def montage(W):
 			im  = W[i*5+j,:].reshape(32,32,3, order='F')
 			sim = (im-np.min(im[:]))/(np.max(im[:])-np.min(im[:]))
 			sim = sim.transpose(1,0,2)
-			ax[i][j].imshow(sim, interpolation='nearest')
+			ax[i][j].imshow(sim, interpolation='nearest',cmap='RdBu')
 			ax[i][j].set_title("y="+str(5*i+j))
 			ax[i][j].axis('off')
 	return fig, ax 
 
-def save_as_mat(data, name="model"):
+def save_as_mat(data, name):
 	""" Used to transfer a python model to matlab """
 	import scipy.io as sio
 	sio.savemat(name + '.mat',
-			{name:data})
+			data)
 
 
 
@@ -372,6 +372,9 @@ def MiniBatchGD(X,Y,GDparams,W,b,lamda):
 	lenX = X.shape[-1]
 	batch_size = GDparams.n_batch
 	batch_range = np.arange(1,lenX//GDparams.n_batch)
+	
+	hist = {}; hist['train'] = []; hist['val'] = []
+
 	for epoch in (range(GDparams.n_epochs)): 
 		# Shuffle the batch indicites 
 		indices = np.random.permutation(lenX)
@@ -388,11 +391,20 @@ def MiniBatchGD(X,Y,GDparams,W,b,lamda):
 							batch_size)
 		
 		jc = ComputeCost(X,Y,W,b,GDparams.lamda)
-		acc = ComputeAccuracy(X,Y,W,b)
+		hist['train'].append(jc)
+		print(f"At Epoch =({epoch+1}/{GDparams.n_epochs}), Train Loss ={hist['train'][-1]}")
+	
+	return W, b, hist 
 
-		print(f"At Epoch ={epoch+1}, Cost Func ={jc}, acc = {acc*100}")
-	return W, b 
-
+def plot_loss(loss,fig=None,axs=None,color=None):
+	if fig==None:
+		fig, axs = plt.subplots(1,1,figsize=(6,4))
+	if color == None:
+		color = "r"
+	axs.plot(loss,lw=2.5,c=color)
+	axs.set_xlabel('Epochs')
+	axs.set_ylabel('Loss')
+	return fig, axs 
 
 def test():
 	print("#"*30)
@@ -441,9 +453,6 @@ def test():
 									W,b,
 									lamda)
 	print(f"INFO: Shape of gW = {grad_W.shape}, gb = {grad_b.shape}")
-	
-	
-
 	# grad_W_a, grad_b_a = ComputeGradsNumSlow(X_test,
 	# 									Y_test,
 	# 									P,
@@ -477,9 +486,20 @@ def test():
 	# fig.colorbar(clb2,ax=axs[1])
 	# fig.savefig('resW.jpg',dpi=300,bbox_inches='tight')
 
-	MiniBatchGD(X,Yenc,GDparams,W,b,lamda)
+	W,b, hist = MiniBatchGD(X,Yenc,GDparams,W,b,lamda)
+	
+	fig, axs = plot_loss(hist['train'])
+	fig.savefig('Loss.jpg',dpi=300,bbox_inches='tight')
 	print("#"*30)
-
+	
+	filename = f"WB_{GDparams.n_batch}bs_{GDparams.n_epochs}Epoch_{GDparams.eta:.2e}lr_{GDparams.lamda:.3e}lamb"
+	save_as_mat({"W":W,
+				"b":b,
+				'train_loss':np.array(hist['train']),
+				'val_loss':np.array(hist['val']),
+				},
+				filename)
+	print(f"W&B Saved!")
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
