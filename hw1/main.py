@@ -9,13 +9,41 @@ import numpy as np
 import pickle
 import numpy.linalg as LA
 import matplotlib.pyplot as plt
+import scipy.io as sio
 from tqdm import tqdm 
+import pathlib
+pathlib.Path('Figs/').mkdir(exist_ok=True)
+pathlib.Path('data/').mkdir(exist_ok=True)
+pathlib.Path('weights/').mkdir(exist_ok=True)
 font_dict = {'size':20,'weight':'bold'}
 # Setup the random seed
 np.random.seed(400)
 # Set the global variables
-global K, d
+global K, d, label
 
+
+# Set up the parameter 
+class GDparams:
+	eta 	= 1e-1		# [0.1,1e-3,1e-3,1e-3]
+	n_batch = 100 		# [100,100,100,100]
+	n_epochs= 40 		# [40,40,40,40]
+	lamda 	= 0 		# [0,0,0.1,1]
+
+# For visualisation 
+class colorplate:
+    red = "#D23918" # luoshenzhu
+    blue = "#2E59A7" # qunqing
+    yellow = "#E5A84B" # huanghe liuli
+    cyan = "#5DA39D" # er lv
+    black = "#151D29" # lanjian
+    gray    = "#DFE0D9" # ermuyu 
+
+plt.rc("font",family = "serif")
+plt.rc("font",size = 22)
+plt.rc("axes",labelsize = 16, linewidth = 2)
+plt.rc("legend",fontsize= 12, handletextpad = 0.3)
+plt.rc("xtick",labelsize = 18)
+plt.rc("ytick",labelsize = 18)
 
 ##########################################
 ## Function from the assignments
@@ -83,22 +111,20 @@ def ComputeGradsNumSlow(X, Y, P, W, b, lamda, h):
 			W_try = np.array(W)
 			W_try[i,j] += h
 			c2 = ComputeCost(X, Y, W_try, b, lamda)
-
 			grad_W[i,j] = (c2-c1) / (2*h)
-
 	return [grad_W, grad_b]
 
-def montage(W):
+def montage(W,label):
 	""" Display the image for each label in W """
 	import matplotlib.pyplot as plt
-	fig, ax = plt.subplots(2,5)
+	fig, ax = plt.subplots(2,5,figsize=(12,6))
 	for i in range(2):
 		for j in range(5):
 			im  = W[i*5+j,:].reshape(32,32,3, order='F')
 			sim = (im-np.min(im[:]))/(np.max(im[:])-np.min(im[:]))
 			sim = sim.transpose(1,0,2)
 			ax[i][j].imshow(sim, interpolation='nearest',cmap='RdBu')
-			ax[i][j].set_title("y="+str(5*i+j))
+			ax[i][j].set_title(f"y={str(5*i+j)}\n{str(label[5*i+j])}")
 			ax[i][j].axis('off')
 	return fig, ax 
 
@@ -127,16 +153,48 @@ def load_data():
 	fileList = [ f for f in fileList if f[:4]=='data']
 	# print(f"Existing Data: {fileList}")
 
-	dt = LoadBatch(fileList[0])
-	# print(f"Type of data: {type(dt)}")
-	# print(f"The key of diction:\n{dt.keys()}")
-
-	X 		= np.array(dt[b'data']).astype(np.float32).T
-	y 		= np.array(dt[b'labels']).astype(np.float32).flatten()
+	dt = LoadBatch("data_batch_1")
+	
+	X 		= np.array(dt[b'data']).astype(np.float64).T
+	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	labels 	= dt[b'batch_label']
-	print(f"X: \t {X.shape}")
-	print(f"Y: \t {y.shape}, here are {len(np.unique(y))} Labels")
+	print(f"TRAIN X: {X.shape}")
+	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
+
+	dt = LoadBatch("data_batch_2")
+	X_val 		= np.array(dt[b'data']).astype(np.float64).T
+	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
+	labels 	= dt[b'batch_label']
+	print(f"TRAIN X: {X.shape}")
+	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
+
+
+	return X, y, X_val,y_val,labels
+
+def load_test_data():
+	"""
+	Load Data from the binary file using Pickle 
+
+	Returns: 
+		X	: Array with shape of 
+	"""
+	import os 
+
+	fileList = os.listdir('data/')
+	fileList = [ f for f in fileList if f[:4]=='data']
+	
+	# print(f"Existing Data: {fileList}")
+
+	dt = LoadBatch("test_batch")
+	
+	X 		= np.array(dt[b'data']).astype(np.float64).T
+	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
+	labels 	= dt[b'batch_label']
+	print(f"TEST X: {X.shape}")
+	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
+
 	return X, y, labels
+
 
 def normal_scaling(X):
 	"""
@@ -149,10 +207,11 @@ def normal_scaling(X):
 		mean_x 	: Mean value of X for sample
 		std_x	: STD of X 
 	"""
-	mean_x = np.mean(X,axis=0)
-	std_x = np.mean(X,axis=0)
+	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1)
+	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1)
 	# print(f"The Mean={mean_x.shape}; Std = {std_x.shape}")	
 	print(f"INFO: Complete Normalisation")
+
 	return (X-mean_x)/std_x, mean_x, std_x
 
 def init_WB(K:int,d:int,):
@@ -167,9 +226,10 @@ def init_WB(K:int,d:int,):
 		b	:	[d,1] Numpy Array as a vector of bias
 	"""
 
-	mu = 0; sigma = 0.01
-	W = np.random.normal(mu,sigma,size=(K,d))
-	b = np.random.normal(mu,sigma,size=(K,1))
+	mu = 0; sigma = 1e-2
+	W = np.random.normal(mu,sigma,size=(K,d)).astype(np.float64)
+	b = np.random.normal(mu,sigma,size=(K,1)).astype(np.float64)
+	
 	print(f"INFO:W&B init: W={W.shape}, b={b.shape}")
 	return W,b
 
@@ -206,7 +266,7 @@ def one_hot_encode(y,K):
 	
 	return y_hat
 
-def ComputeCost(X,Y,W,b,lamda):
+def ComputeCost(X,Y,W,b,lamda,return_loss = False):
 	"""
 	Compute the cost function: c = loss + regularisation 
 
@@ -234,8 +294,11 @@ def ComputeCost(X,Y,W,b,lamda):
 	J = l_cross + reg
 	
 	del P, W
-	return J 
-
+	if return_loss:
+		return J, l_cross
+	else: 
+		return J 
+	
 def ComputeAccuracy(X,Y,W,b):
 	"""
 	Compute the accuracy of the classification 
@@ -258,12 +321,11 @@ def ComputeAccuracy(X,Y,W,b):
 	#Compute the maximum prob 
 	# [K,n] -> K[1,n]
 	P = np.argmax(P,axis=0)
+	
 	# Compute how many true-positive samples
 	true_pos = np.sum(P == Y)
-
 	# Percentage on total 
 	acc =  true_pos / Y.shape[-1]
-
 	return acc
 
 def ComputeGradients(X,Y,P,W,b,lamda):
@@ -338,14 +400,9 @@ def Prop_Error(ga,gn,eps):
 				summ.reshape(1,n,m)],axis=0)
 	return np.abs(ga-gn)/np.max(diw,0)
 
-class GDparams:
-	eta 	= 1e-3 
-	n_batch = 100
-	n_epochs= 100
-	lamda 	= 0
 
 
-def MiniBatchGD(X,Y,GDparams,W,b,lamda):
+def MiniBatchGD(X,Y,X_val,Y_val,GDparams,W,b):
 	"""
 	MiniBatch Gradient Descent for training the model 
 
@@ -355,6 +412,10 @@ def MiniBatchGD(X,Y,GDparams,W,b,lamda):
 		
 		Y 		:	[K, n] The ground truth 
 		
+		X_val 	:	[d, n] The input with batch size of n 
+		
+		Y_val 	:	[K, n] The ground truth 
+
 		GDparams:   (dict) The dictionary for paraemeter 
 
 		W 		:	[K, d] The weight 
@@ -373,15 +434,19 @@ def MiniBatchGD(X,Y,GDparams,W,b,lamda):
 	batch_size = GDparams.n_batch
 	batch_range = np.arange(1,lenX//GDparams.n_batch)
 	
-	hist = {}; hist['train'] = []; hist['val'] = []
+	hist = {}; hist['train_cost'] = []; hist['val_cost'] = []
+	hist['train_loss'] = []; hist['val_loss'] = []
 
 	for epoch in (range(GDparams.n_epochs)): 
+
 		# Shuffle the batch indicites 
 		indices = np.random.permutation(lenX)
 		X_ = X[:,indices]
 		Y_ = Y[:,indices]
 		
 		for b in (batch_range):
+			# print(f"FROM:{b*batch_size}:{(b+1)*batch_size}")
+			
 			X_batch = X_[:,b*batch_size:(b+1)*batch_size]
 			Y_batch = Y_[:,b*batch_size:(b+1)*batch_size]
 
@@ -390,34 +455,49 @@ def MiniBatchGD(X,Y,GDparams,W,b,lamda):
 							GDparams.eta,
 							batch_size)
 		
-		jc = ComputeCost(X,Y,W,b,GDparams.lamda)
-		hist['train'].append(jc)
-		print(f"At Epoch =({epoch+1}/{GDparams.n_epochs}), Train Loss ={hist['train'][-1]}")
+		jc,l_train = ComputeCost(X,Y,W,b,GDparams.lamda,return_loss=True)
+		hist['train_cost'].append(jc)
+		hist['train_loss'].append(l_train)
 	
+		jc_val,l_val  = ComputeCost(X_val,Y_val,W,b,GDparams.lamda,return_loss=True)
+		hist['val_cost'].append(jc_val)
+		hist['val_loss'].append(l_val)
+
+		print(f"\nAt Epoch =({epoch+1}/{GDparams.n_epochs}),\n"+\
+			f" Train Cost ={hist['train_cost'][-1]}, Val Cost ={hist['val_cost'][-1]}\n"+\
+			f" Train Loss ={hist['train_loss'][-1]}, Val Loss ={hist['val_loss'][-1]}"
+			)
+
 	return W, b, hist 
 
-def plot_loss(loss,fig=None,axs=None,color=None):
+def plot_loss(loss,fig=None,axs=None,color=None,ls=None):
 	if fig==None:
 		fig, axs = plt.subplots(1,1,figsize=(6,4))
-	if color == None:
-		color = "r"
-	axs.plot(loss,lw=2.5,c=color)
+	
+	if color == None: color = "r"
+	if ls == None: ls = '-'
+	axs.plot(loss,ls,lw=2.5,c=color)
 	axs.set_xlabel('Epochs')
 	axs.set_ylabel('Loss')
 	return fig, axs 
 
-def test():
+def test_code():
 	print("#"*30)
 	print(f"Testing Functions:")
 	# Step 1: Load data
-	X, Y, labels = load_data()
+
+	X, Y, X_val ,Y_val, labels = load_data()
 	# Define the feature size and label size
 	K = len(np.unique(Y)); d = X.shape[0]
 	# One-Hot encoded for Y 
-	Yenc = one_hot_encode(Y,K)
+	Yenc 	 = one_hot_encode(Y,K)
+	Yenc_val = one_hot_encode(Y_val,K)
 	print(f"Global K={K}, d={d}")
+
 	# Step 2: Scaling the data
-	X,_,_ = normal_scaling(X)
+	X,muX,stdX 		= normal_scaling(X)
+	X_val			= (X_val - muX / stdX)
+	
 	# Step 3: Initialisation of the network
 	W,b   = init_WB(K,d)
 	
@@ -429,7 +509,7 @@ def test():
 	print(f"INFO: Test Pred={P.shape}")
 	
 	# Step 5: Cost Function
-	J = ComputeCost(X_test,Y_test,W,b,lamda=0)
+	J,l_cross = ComputeCost(X_test,Y_test,W,b,lamda=0,return_loss=True)
 	print(f"INFO: The loss = {J}")
 
 	# Step 6: Examine the acc func:
@@ -438,8 +518,6 @@ def test():
 	print(f"INFO:Accuracy Score={acc*100}%") 
 
 	# Step 7 Compute the Gradient and compare to analytical solution 
-	# Step 4: Test for forward prop
-	
 	batch_size = 1
 	X_test  = X[:,:batch_size]
 	Y_test  = Yenc[:,:batch_size]
@@ -453,57 +531,140 @@ def test():
 									W,b,
 									lamda)
 	print(f"INFO: Shape of gW = {grad_W.shape}, gb = {grad_b.shape}")
-	# grad_W_a, grad_b_a = ComputeGradsNumSlow(X_test,
-	# 									Y_test,
-	# 									P,
-	# 									W,b,
-	# 									lamda=lamda,
-	# 									h=h)
-	# print(f"INFO: Shape of gW = {grad_W_a.shape}, gb = {grad_b_a.shape}")
-	# ew = Prop_Error(grad_W,grad_W_a,h)
-	# eb = Prop_Error(grad_b,grad_b_a,h)
-	# print(f"Comparison: Prop Error for weight:{ew.mean()}")
-	# print(f"Comparison: Prop Error for Bias:{eb.mean()}")
-
-	# fig, axs = plt.subplots(2,1,figsize=(4,4),sharex=True,sharey=True)
-	# clb = axs[0].contourf(grad_W,
-	# 				vmax=grad_W_a.max(),
-	# 				vmin=grad_W_a.min(),
-	# 				cmap = 'RdBu')
-	
-	# clb2=axs[1].contourf(grad_W_a,
-	# 				vmax=grad_W_a.max(),
-	# 				vmin=grad_W_a.min(),
-	# 				cmap = 'RdBu')
-	# for ax in axs:
-	# 	ax.set_xticks([])
-	# 	ax.set_yticks([])
-	# 	# ax.set_aspect(0.5)
-	# axs[0].set_title("Analytical: " + r'$\frac{\partial L}{\partial W}$',font_dict)
-	# axs[1].set_title("Numerical: " + r'$\frac{\partial L}{\partial W}$',font_dict)
-	# fig.subplots_adjust(hspace=0.5)
-	# fig.colorbar(clb,ax=axs[0])
-	# fig.colorbar(clb2,ax=axs[1])
-	# fig.savefig('resW.jpg',dpi=300,bbox_inches='tight')
-
-	W,b, hist = MiniBatchGD(X,Yenc,GDparams,W,b,lamda)
-	
-	fig, axs = plot_loss(hist['train'])
-	fig.savefig('Loss.jpg',dpi=300,bbox_inches='tight')
+	grad_W_a, grad_b_a = ComputeGradsNumSlow(X_test,
+										Y_test,
+										P,
+										W,b,
+										lamda=lamda,
+										h=h)
+	print(f"INFO: Shape of gW = {grad_W_a.shape}, gb = {grad_b_a.shape}")
+	ew = Prop_Error(grad_W,grad_W_a,h)
+	eb = Prop_Error(grad_b,grad_b_a,h)
+	print(f"Comparison: Prop Error for weight:{ew.mean()}")
+	print(f"Comparison: Prop Error for Bias:{eb.mean()}")
+	fig, axs = montage(grad_W)
+	fig.savefig('Figs/Gradient_test.jpg',bbox_inches='tight',dpi=200)
+	fig, axs = montage(grad_W_a)
+	fig.savefig('Figs/Gradient_analytical.jpg',bbox_inches='tight',dpi=200)
 	print("#"*30)
+
+
+def train():
 	
+	"""Training for W&B"""
+
+	print("#"*30)
+	print(f"Training:")
 	filename = f"WB_{GDparams.n_batch}bs_{GDparams.n_epochs}Epoch_{GDparams.eta:.2e}lr_{GDparams.lamda:.3e}lamb"
+	print(f"Case:\n{filename}")
+	# Step 1: Load data
+	X, Y, X_val ,Y_val, labels = load_data()
+	# Define the feature size and label size
+	K = len(np.unique(Y)); d = X.shape[0]
+	# One-Hot encoded for Y 
+	Yenc 	 = one_hot_encode(Y,K)
+	Yenc_val = one_hot_encode(Y_val,K)
+	print(f"Global K={K}, d={d}")
+
+	# Step 2: Scaling the data
+	X,muX,stdX 		= normal_scaling(X)
+	X_val			= (X_val - muX)/ stdX
+	
+	# Step 3: Initialisation of the network
+	W,b   = init_WB(K,d)
+	
+	# Step 4: Mini-Batch gradient descent
+	W,b, hist = MiniBatchGD(X,Yenc,X_val,Yenc_val,GDparams,W,b)
+	
 	save_as_mat({"W":W,
 				"b":b,
-				'train_loss':np.array(hist['train']),
-				'val_loss':np.array(hist['val']),
+				'train_loss':np.array(hist['train_loss']),
+				'train_cost':np.array(hist['train_cost']),
+				'val_loss':np.array(hist['val_loss']),
+				'val_cost':np.array(hist['val_cost']),
 				},
-				filename)
+
+				"weights/" + filename)
 	print(f"W&B Saved!")
+	
+	fig, axs = plot_loss(hist['train_cost'],color = colorplate.red,ls = '-')
+	fig, axs = plot_loss(hist['train_loss'],fig,axs,color = colorplate.red,ls = '-.')
+	fig, axs = plot_loss(hist['val_cost'],fig,axs,color =colorplate.blue, ls = '-')
+	fig, axs = plot_loss(hist['val_loss'],fig,axs,color =colorplate.blue, ls = '-.')
+
+	axs.legend(['Train Cost',"Train Loss", "Val Cost", "Val Loss"])
+	fig.savefig(f'Figs/Loss_{filename}.jpg',dpi=300,bbox_inches='tight')
+	print("#"*30)
+
+	return
+
+
+def postProcessing():
+	"""
+	Post-process of all the W&B
+	"""
+	gdparams = {
+				'n_batch':[100,100,100,100],
+				'n_epoch':[40,40,40,40],
+				'eta'    :[1e-1,1e-3,1e-3,1e-3],
+				'lamda'  :[0,0,0.1,1]
+				}
+	
+	X,Y,labels = load_test_data()
+	K = len(np.unique(Y)); d = X.shape[0]
+	Xt, _, _ ,_,_  = load_data() #use training data to scale the test data
+	_,muX,stdX     = normal_scaling(Xt)
+	X 			   = (X - muX)/stdX
+
+	labels = ['airplane','automobile','bird',
+			'cat','deer','dog','frog',
+			"horse",'ship','truck']
+	
+	del Xt
+	res_acc		= {}
+	names 		= []
+	loss_dict 	= {}
+	for il in range(4):
+		
+		n_batch  = gdparams['n_batch'][il]
+		n_epochs = gdparams['n_epoch'][il]
+		eta      = gdparams['eta'][il]
+		lamda    = gdparams['lamda'][il]
+
+		filename = f"WB_{n_batch}bs_"+\
+					f"{n_epochs}Epoch_"+\
+					f"{eta:.2e}lr_{lamda:.3e}lamb"
+		
+		d		 =	sio.loadmat("weights/" + filename+'.mat')
+		print(f"INFO Loaded: {filename}")
+
+		# Read W&B
+		W, b = d["W"],d["b"]
+
+		# Assess Acc on test data
+		acc = ComputeAccuracy(X,Y,W,b)
+		print(f"ACC = {acc*100:.2f}%")
+
+		names.append(filename)
+		res_acc[filename] = acc
+
+		fig, axs = montage(W,labels)
+		fig.savefig(f"Figs/Weight_Vis_{filename}.jpg",dpi=300,bbox_inches='tight')
+
+		loss_dict["train_" + filename] = d['train_loss']
+		loss_dict["test_" + filename] = d['val_loss']
+	
+
+	# Visualisation
+	###############################
+	
+
+
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
 if __name__ == "__main__":
 
-	test()
-
+	# test_code()
+	# train()
+	postProcessing()
