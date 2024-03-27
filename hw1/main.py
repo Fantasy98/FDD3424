@@ -10,8 +10,10 @@ import pickle
 import numpy.linalg as LA
 import matplotlib.pyplot as plt
 import scipy.io as sio
+import pandas as pd 
 from tqdm import tqdm 
 import pathlib
+
 pathlib.Path('Figs/').mkdir(exist_ok=True)
 pathlib.Path('data/').mkdir(exist_ok=True)
 pathlib.Path('weights/').mkdir(exist_ok=True)
@@ -607,7 +609,7 @@ def postProcessing():
 				'n_batch':[100,100,100,100],
 				'n_epoch':[40,40,40,40],
 				'eta'    :[1e-1,1e-3,1e-3,1e-3],
-				'lamda'  :[0,0,0.1,1]
+				'lamda'  :[0, 0, 0.1 ,1]
 				}
 	
 	X,Y,labels = load_test_data()
@@ -623,6 +625,7 @@ def postProcessing():
 	del Xt
 	res_acc		= {}
 	names 		= []
+	cost_dict 	= {}
 	loss_dict 	= {}
 	for il in range(4):
 		
@@ -646,18 +649,63 @@ def postProcessing():
 		print(f"ACC = {acc*100:.2f}%")
 
 		names.append(filename)
-		res_acc[filename] = acc
+		res_acc[filename] = np.array(acc).reshape(-1,)
 
 		fig, axs = montage(W,labels)
 		fig.savefig(f"Figs/Weight_Vis_{filename}.jpg",dpi=300,bbox_inches='tight')
 
-		loss_dict["train_" + filename] = d['train_loss']
-		loss_dict["test_" + filename] = d['val_loss']
+		cost_dict["train_" + filename] 	= d['train_cost'].flatten()
+		cost_dict["val_" + filename] 	= d['val_cost'].flatten()
+		
+		loss_dict["train_" + filename] 	= d['train_loss'].flatten()
+		loss_dict["val_" + filename] 	= d['val_loss'].flatten()
 	
-
+	df = pd.DataFrame(res_acc)
+	df.to_csv('Acc.csv')
+	
 	# Visualisation
 	###############################
-	
+		
+	colors = [colorplate.cyan,colorplate.blue,colorplate.yellow,colorplate.red]
+	fig,axs = plt.subplots(1,1,figsize = (8,6))
+	legend_label = []
+	for il, filename in enumerate(names):
+		n_batch  = gdparams['n_batch'][il]
+		n_epochs = gdparams['n_epoch'][il]
+		eta      = gdparams['eta'][il]
+		lamda    = gdparams['lamda'][il]
+		label_   = f"n_batch={n_batch}; n_epochs={n_epochs}; " + r"$\eta$" +f"={eta}; "+r"$\lambda$" +f"={lamda}"
+		
+		axs.plot(cost_dict["train_" + filename], "-",lw = 2,c=colors[il])
+		legend_label.append(label_)
+		
+	axs.legend(legend_label,loc='upper right')
+	for il, filename in enumerate(names):
+		axs.plot(cost_dict["val_" + filename],   "--",lw = 2,c=colors[il])
+		
+	axs.set_xlabel('Epoch',font_dict)
+	axs.set_ylabel('Cost',font_dict)
+	# axs.set_ylim(1.5,6)
+	fig.savefig("Figs/Cost_compare.jpg",dpi=500,bbox_inches='tight')
+
+
+
+	fig1,axs1 = plt.subplots(1,1,figsize = (8,6))
+	for il, filename in enumerate(names):
+		n_batch  = gdparams['n_batch'][il]
+		n_epochs = gdparams['n_epoch'][il]
+		eta      = gdparams['eta'][il]
+		lamda    = gdparams['lamda'][il]	
+		axs1.plot(loss_dict["train_" + filename], "-",lw = 2,c=colors[il])
+		
+	axs1.legend(legend_label,loc='upper right')
+	for il, filename in enumerate(names):
+		axs1.plot(loss_dict["val_" + filename],   "--",lw = 2,c=colors[il])
+		
+	axs1.set_xlabel('Epoch',font_dict)
+	axs1.set_ylabel('Loss',font_dict)
+	# axs1.set_ylim(1,3)
+	fig1.savefig("Figs/Loss_compare.jpg",dpi=500,bbox_inches='tight')
 
 
 ##########################################
