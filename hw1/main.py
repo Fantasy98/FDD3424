@@ -67,7 +67,9 @@ class GDparams:
 ##########################################
 ## Function from the assignments
 ##########################################
-def LoadBatch(filename):
+
+# I rename the function 
+def readPickle(filename):
 	""" Copied from the dataset website """
 	# import pickle5 as pickle 
 	with open('data/'+ filename, 'rb') as f:
@@ -160,7 +162,7 @@ def save_as_mat(data, name):
 ## Functions from scratch 
 ## Yuningw 
 ##########################################
-def load_data():
+def LoadBatch():
 	"""
 	Load Data from the binary file using Pickle 
 
@@ -172,12 +174,12 @@ def load_data():
 		Y_val	: [1,n] 
 	"""
 	
-	dt = LoadBatch("data_batch_1")
+	dt = readPickle("data_batch_1")
 	X 		= np.array(dt[b'data']).astype(np.float64).T
 	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	print(f"TRAIN X: {X.shape}")
 	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
-	dt = LoadBatch("data_batch_2")
+	dt = readPickle("data_batch_2")
 	X_val 		= np.array(dt[b'data']).astype(np.float64).T
 	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	labels 	= dt[b'batch_label']
@@ -193,7 +195,7 @@ def load_test_data():
 		X	: [d,n] 
 		Y	: [1,n]  
 	"""
-	dt = LoadBatch("test_batch")
+	dt = readPickle("test_batch")
 	X 		= np.array(dt[b'data']).astype(np.float64).T
 	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	print(f"TEST X: {X.shape}")
@@ -481,15 +483,17 @@ def plot_loss(loss,fig=None,axs=None,color=None,ls=None):
 	return fig, axs 
 
 def test_code():
+	"""Test the functions for the assignments """
+
 	print("#"*30)
 	labels = ['airplane','automobile','bird',
 			'cat','deer','dog','frog',
 			"horse",'ship','truck']
 	
 	print(f"Testing Functions:")
-	# Step 1: Load data
 
-	X, Y, X_val ,Y_val = load_data()
+	# Step 1: Load data
+	X, Y, X_val ,Y_val = LoadBatch()
 	# Define the feature size and label size
 	K = len(np.unique(Y)); d = X.shape[0]
 	# One-Hot encoded for Y 
@@ -517,7 +521,6 @@ def test_code():
 
 	# Step 6: Examine the acc func:
 	acc = ComputeAccuracy(X,Y,W,b)
-
 	print(f"INFO:Accuracy Score={acc*100}%") 
 
 	# Step 7 Compute the Gradient and compare to analytical solution 
@@ -580,7 +583,7 @@ def train():
 	filename = f"WB_{GDparams.n_batch}bs_{GDparams.n_epochs}Epoch_{GDparams.eta:.2e}lr_{GDparams.lamda:.3e}lamb"
 	print(f"Case:\n{filename}")
 	# Step 1: Load data
-	X, Y, X_val ,Y_val= load_data()
+	X, Y, X_val ,Y_val= LoadBatch()
 	# Define the feature size and label size
 	K = len(np.unique(Y)); d = X.shape[0]
 	# One-Hot encoded for Y 
@@ -598,6 +601,7 @@ def train():
 	# Step 4: Mini-Batch gradient descent
 	W,b, hist = MiniBatchGD(X,Yenc,X_val,Yenc_val,GDparams,W,b)
 	
+	# Step 5: Save the data
 	save_as_mat({"W":W,
 				"b":b,
 				'train_loss':np.array(hist['train_loss']),
@@ -609,11 +613,11 @@ def train():
 				"weights/" + filename)
 	print(f"W&B Saved!")
 	
+	# Step 6: Visualisation of loss/cost function
 	fig, axs = plot_loss(hist['train_cost'],color = colorplate.red,ls = '-')
 	fig, axs = plot_loss(hist['train_loss'],fig,axs,color = colorplate.red,ls = '-.')
 	fig, axs = plot_loss(hist['val_cost'],fig,axs,color =colorplate.blue, ls = '-')
 	fig, axs = plot_loss(hist['val_loss'],fig,axs,color =colorplate.blue, ls = '-.')
-
 	axs.legend(['Train Cost',"Train Loss", "Val Cost", "Val Loss"])
 	fig.savefig(f'Figs/Loss_{filename}.jpg',dpi=300,bbox_inches='tight')
 	print("#"*30)
@@ -634,7 +638,7 @@ def postProcessing():
 	
 	X,Y = load_test_data()
 	K = len(np.unique(Y)); d = X.shape[0]
-	Xt, _, _ ,_  = load_data() #use training data to scale the test data
+	Xt, _, _ ,_  = LoadBatch() #use training data to scale the test data
 	_,muX,stdX     = normal_scaling(Xt)
 	X 			   = (X - muX)/stdX
 
@@ -671,6 +675,7 @@ def postProcessing():
 		names.append(filename)
 		res_acc[filename] = np.array(acc).reshape(-1,)
 
+		# Visualise the learned Weight
 		fig, axs = montage(W,labels)
 		fig.savefig(f"Figs/Weight_Vis_{filename}.jpg",dpi=300,bbox_inches='tight')
 
@@ -685,7 +690,8 @@ def postProcessing():
 	
 	# Visualisation
 	###############################
-		
+	
+	## 1: All the cost function 
 	colors = [colorplate.cyan,colorplate.blue,colorplate.yellow,colorplate.red]
 	fig,axs = plt.subplots(1,1,figsize = (8,6))
 	legend_label = []
@@ -708,8 +714,7 @@ def postProcessing():
 	# axs.set_ylim(1.5,6)
 	fig.savefig("Figs/Cost_compare.jpg",dpi=500,bbox_inches='tight')
 
-
-
+	## 2: All the loss function 
 	fig1,axs1 = plt.subplots(1,1,figsize = (8,6))
 	for il, filename in enumerate(names):
 		n_batch  = gdparams['n_batch'][il]
@@ -728,7 +733,7 @@ def postProcessing():
 	fig1.savefig("Figs/Loss_compare.jpg",dpi=500,bbox_inches='tight')
 
 
-
+	## 3: When learning rate = 1e-3
 	legend_label = []
 	fig1,axs1 = plt.subplots(1,1,figsize = (6,3))
 	for il, filename in enumerate(names[1:]):
@@ -744,10 +749,10 @@ def postProcessing():
 		axs1.plot(cost_dict["val_" + filename], "--",lw = 2,c=colors[il+1])
 	axs1.set_xlabel('Epoch',font_dict)
 	axs1.set_ylabel('Cost',font_dict)
-
 	fig1.savefig("Figs/Cost_compare_1e-3.jpg",dpi=500,bbox_inches='tight')
 
-	
+
+	## 4: When lamda = 0 
 	legend_label = []
 	fig1,axs1 = plt.subplots(1,1,figsize = (6,3))
 	for il, filename in enumerate(names[:2]):
