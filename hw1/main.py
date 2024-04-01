@@ -1,6 +1,10 @@
 """
+Assignment 1
+
 Training for a binary Classifier 
+
 @yuningw
+Mar 27th, 2024 
 """
 ##########################################
 ## Environment and general setup 
@@ -13,7 +17,18 @@ import scipy.io as sio
 import pandas as pd 
 from tqdm import tqdm 
 import pathlib
+import argparse
 
+# Parse Arguments 
+parser = argparse.ArgumentParser()
+parser.add_argument('-m',default='run',type=str,help='Choose the mode for run the code: test, run, train, eval')
+parser.add_argument('-epoch',default=40,type=int,help='Number of epoch')
+parser.add_argument('-batch',default=100,type=int,help='Batch size')
+parser.add_argument('-lr',default=1e-3,type=float,help='learning rate')
+parser.add_argument('-lamda',default=0,type=float,help='l2 regularisation')
+args = parser.parse_args()
+
+# Mkdir 
 pathlib.Path('Figs/').mkdir(exist_ok=True)
 pathlib.Path('data/').mkdir(exist_ok=True)
 pathlib.Path('weights/').mkdir(exist_ok=True)
@@ -22,14 +37,6 @@ font_dict = {'size':20,'weight':'bold'}
 np.random.seed(400)
 # Set the global variables
 global K, d, label
-
-
-# Set up the parameter 
-class GDparams:
-	eta 	= 1e-1		# [0.1,1e-3,1e-3,1e-3]
-	n_batch = 100 		# [100,100,100,100]
-	n_epochs= 40 		# [40,40,40,40]
-	lamda 	= 0 		# [0,0,0.1,1]
 
 # For visualisation 
 class colorplate:
@@ -46,6 +53,16 @@ plt.rc("axes",labelsize = 16, linewidth = 2)
 plt.rc("legend",fontsize= 12, handletextpad = 0.3)
 plt.rc("xtick",labelsize = 18)
 plt.rc("ytick",labelsize = 18)
+
+# Set up the parameter for training 
+class GDparams:
+	eta 	= args.lr		# [0.1,1e-3,1e-3,1e-3]
+	n_batch = args.batch		# [100,100,100,100]
+	n_epochs= args.epoch 		# [40,40,40,40]
+	lamda 	= args.lamda 		# [0,0,0.1,1]
+
+#-----------------------------------------------
+
 
 ##########################################
 ## Function from the assignments
@@ -135,6 +152,7 @@ def save_as_mat(data, name):
 	import scipy.io as sio
 	sio.savemat(name + '.mat',
 			data)
+#-----------------------------------------------
 
 
 
@@ -147,55 +165,40 @@ def load_data():
 	Load Data from the binary file using Pickle 
 
 	Returns: 
-		X	: Array with shape of 
+		X	: [d,n] 
+		Y	: [1,n] 
+		X_val	: [d,n] 
+		Y_val	: [1,n] 
+		Y_val	: [1,n] 
 	"""
-	import os 
-
-	fileList = os.listdir('data/')
-	fileList = [ f for f in fileList if f[:4]=='data']
-	# print(f"Existing Data: {fileList}")
-
-	dt = LoadBatch("data_batch_1")
 	
+	dt = LoadBatch("data_batch_1")
 	X 		= np.array(dt[b'data']).astype(np.float64).T
 	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
-	labels 	= dt[b'batch_label']
 	print(f"TRAIN X: {X.shape}")
 	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
-
 	dt = LoadBatch("data_batch_2")
 	X_val 		= np.array(dt[b'data']).astype(np.float64).T
 	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	labels 	= dt[b'batch_label']
-	print(f"TRAIN X: {X.shape}")
-	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
-
-
-	return X, y, X_val,y_val,labels
+	print(f"Val X: {X.shape}")
+	print(f"Val Y:{y.shape}, here are {len(np.unique(y))} Labels")
+	return X, y, X_val,y_val
 
 def load_test_data():
 	"""
 	Load Data from the binary file using Pickle 
 
 	Returns: 
-		X	: Array with shape of 
+		X	: [d,n] 
+		Y	: [1,n]  
 	"""
-	import os 
-
-	fileList = os.listdir('data/')
-	fileList = [ f for f in fileList if f[:4]=='data']
-	
-	# print(f"Existing Data: {fileList}")
-
 	dt = LoadBatch("test_batch")
-	
 	X 		= np.array(dt[b'data']).astype(np.float64).T
 	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
-	labels 	= dt[b'batch_label']
 	print(f"TEST X: {X.shape}")
 	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
-
-	return X, y, labels
+	return X, y
 
 
 def normal_scaling(X):
@@ -351,11 +354,8 @@ def ComputeGradients(X,Y,P,W,b,lamda):
 
 	# compute the difference 
 	g 	= -(Y - P).T
-
 	grad_W 		= g.T @ X.T + 2*lamda*W
-
 	grad_b 		= np.sum(g,axis=0).reshape(-1,1)
-
 	return grad_W, grad_b
 
 def BackProp(X,Y,W,b,lamda,eta,n_batch):
@@ -447,11 +447,8 @@ def MiniBatchGD(X,Y,X_val,Y_val,GDparams,W,b):
 		Y_ = Y[:,indices]
 		
 		for b in (batch_range):
-			# print(f"FROM:{b*batch_size}:{(b+1)*batch_size}")
-			
 			X_batch = X_[:,b*batch_size:(b+1)*batch_size]
 			Y_batch = Y_[:,b*batch_size:(b+1)*batch_size]
-
 			W,b = BackProp(X_batch,Y_batch,W,b,
 							GDparams.lamda,
 							GDparams.eta,
@@ -485,10 +482,14 @@ def plot_loss(loss,fig=None,axs=None,color=None,ls=None):
 
 def test_code():
 	print("#"*30)
+	labels = ['airplane','automobile','bird',
+			'cat','deer','dog','frog',
+			"horse",'ship','truck']
+	
 	print(f"Testing Functions:")
 	# Step 1: Load data
 
-	X, Y, X_val ,Y_val, labels = load_data()
+	X, Y, X_val ,Y_val = load_data()
 	# Define the feature size and label size
 	K = len(np.unique(Y)); d = X.shape[0]
 	# One-Hot encoded for Y 
@@ -499,10 +500,10 @@ def test_code():
 	# Step 2: Scaling the data
 	X,muX,stdX 		= normal_scaling(X)
 	X_val			= (X_val - muX / stdX)
-	
+
 	# Step 3: Initialisation of the network
 	W,b   = init_WB(K,d)
-	
+
 	# Step 4: Test for forward prop
 	batch_size = 2
 	X_test  = X[:,:batch_size]
@@ -533,21 +534,40 @@ def test_code():
 									W,b,
 									lamda)
 	print(f"INFO: Shape of gW = {grad_W.shape}, gb = {grad_b.shape}")
-	grad_W_a, grad_b_a = ComputeGradsNumSlow(X_test,
+	grad_W_n, grad_b_n = ComputeGradsNumSlow(X_test,
 										Y_test,
 										P,
 										W,b,
 										lamda=lamda,
 										h=h)
-	print(f"INFO: Shape of gW = {grad_W_a.shape}, gb = {grad_b_a.shape}")
-	ew = Prop_Error(grad_W,grad_W_a,h)
-	eb = Prop_Error(grad_b,grad_b_a,h)
+	print(f"INFO: Shape of gW = {grad_W_n.shape}, gb = {grad_b_n.shape}")
+
+	ew = Prop_Error(grad_W,grad_W_n,h)
+	eb = Prop_Error(grad_b,grad_b_n,h)
 	print(f"Comparison: Prop Error for weight:{ew.mean()}")
 	print(f"Comparison: Prop Error for Bias:{eb.mean()}")
-	fig, axs = montage(grad_W)
+	fig, axs = montage(grad_W_n,labels)
+	fig.savefig('Figs/Gradient_central.jpg',bbox_inches='tight',dpi=200)
+	
+
+	grad_W_n, grad_b_n = ComputeGradsNum(X_test,
+										Y_test,
+										P,
+										W,b,
+										lamda=lamda,
+										h=h)
+	print(f"INFO: Shape of gW = {grad_W_n.shape}, gb = {grad_b_n.shape}")
+	
+	ew = Prop_Error(grad_W,grad_W_n,h)
+	eb = Prop_Error(grad_b,grad_b_n,h)
+	print(f"Comparison: Prop Error for weight:{ew.mean()}")
+	print(f"Comparison: Prop Error for Bias:{eb.mean()}")
+	
+
+	fig, axs = montage(grad_W,labels)
 	fig.savefig('Figs/Gradient_test.jpg',bbox_inches='tight',dpi=200)
-	fig, axs = montage(grad_W_a)
-	fig.savefig('Figs/Gradient_analytical.jpg',bbox_inches='tight',dpi=200)
+	fig, axs = montage(grad_W_n,labels)
+	fig.savefig('Figs/Gradient_finite.jpg',bbox_inches='tight',dpi=200)
 	print("#"*30)
 
 
@@ -560,7 +580,7 @@ def train():
 	filename = f"WB_{GDparams.n_batch}bs_{GDparams.n_epochs}Epoch_{GDparams.eta:.2e}lr_{GDparams.lamda:.3e}lamb"
 	print(f"Case:\n{filename}")
 	# Step 1: Load data
-	X, Y, X_val ,Y_val, labels = load_data()
+	X, Y, X_val ,Y_val= load_data()
 	# Define the feature size and label size
 	K = len(np.unique(Y)); d = X.shape[0]
 	# One-Hot encoded for Y 
@@ -612,9 +632,9 @@ def postProcessing():
 				'lamda'  :[0, 0, 0.1 ,1]
 				}
 	
-	X,Y,labels = load_test_data()
+	X,Y = load_test_data()
 	K = len(np.unique(Y)); d = X.shape[0]
-	Xt, _, _ ,_,_  = load_data() #use training data to scale the test data
+	Xt, _, _ ,_  = load_data() #use training data to scale the test data
 	_,muX,stdX     = normal_scaling(Xt)
 	X 			   = (X - muX)/stdX
 
@@ -708,11 +728,60 @@ def postProcessing():
 	fig1.savefig("Figs/Loss_compare.jpg",dpi=500,bbox_inches='tight')
 
 
+
+	legend_label = []
+	fig1,axs1 = plt.subplots(1,1,figsize = (6,3))
+	for il, filename in enumerate(names[1:]):
+		n_batch  = gdparams['n_batch'][il+1]
+		n_epochs = gdparams['n_epoch'][il+1]
+		eta      = gdparams['eta'][il+1]
+		lamda    = gdparams['lamda'][il+1]	
+		axs1.plot(cost_dict["train_" + filename], "-",lw = 2,c=colors[il+1])
+		legend_label.append(r"$\lambda$" +f"={lamda}")
+
+	axs1.legend(legend_label,loc=(0.2,1),ncol=3)
+	for il, filename in enumerate(names[1:]):
+		axs1.plot(cost_dict["val_" + filename], "--",lw = 2,c=colors[il+1])
+	axs1.set_xlabel('Epoch',font_dict)
+	axs1.set_ylabel('Cost',font_dict)
+
+	fig1.savefig("Figs/Cost_compare_1e-3.jpg",dpi=500,bbox_inches='tight')
+
+	
+	legend_label = []
+	fig1,axs1 = plt.subplots(1,1,figsize = (6,3))
+	for il, filename in enumerate(names[:2]):
+		n_batch  = gdparams['n_batch'][il]
+		n_epochs = gdparams['n_epoch'][il]
+		eta      = gdparams['eta'][il]
+		lamda    = gdparams['lamda'][il]	
+		axs1.plot(loss_dict["train_" + filename], "-",lw = 2,c=colors[il])
+		legend_label.append(r"$\eta$" +f"={eta}")
+
+	axs1.legend(legend_label,loc=(0.3,1),ncol=2)
+	for il, filename in enumerate(names[:2]):
+		axs1.plot(loss_dict["val_" + filename], "--",lw = 2,c=colors[il])
+	
+	axs1.set_xlabel('Epoch',font_dict)
+	axs1.set_ylabel('Loss',font_dict)
+	fig1.savefig("Figs/Loss_compare_1e-3.jpg",dpi=500,bbox_inches='tight')
+
+#-----------------------------------------------
+
+
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
 if __name__ == "__main__":
 
-	# test_code()
-	# train()
-	postProcessing()
+	if args.m == 'test':
+		test_code()
+	elif args.m == 'train':
+		train()
+	elif args.m == 'eval':
+		postProcessing()
+	elif args.m == 'run':
+		train()
+		postProcessing()
+	else:
+		raise ValueError
