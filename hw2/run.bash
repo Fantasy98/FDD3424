@@ -1,1 +1,0 @@
-python main.py | tee run.out 

@@ -1,0 +1,19 @@
+##############################
+Testing Functions:
+TRAIN X: (3072, 10000)
+TRAIN Y:(10000,), here are 10 Labels
+Val X: (3072, 10000)
+Val Y:(10000,), here are 10 Labels
+Global K=10, d=3072
+INFO: Complete Normalisation
+INFO:W&B init: W1=(50, 3072), b2=(50, 1)
+INFO:W&B init: W2=(10, 50), b2=(10, 1)
+INFO: Test Pred=(10, 2)
+INFO: The loss = 2.606873297963619
+INFO:Accuracy Score=9.5%
+INFO: Test Pred=(10, 1),hidden out = (50, 1)
+(10, 50)
+(10, 1)
+(10000, 10) (10, 50)
+(10000, 50)
+Compute Gradient: W2:(10, 50),W1:(50, 3072),b1:(50, 1),b2:(10, 1)

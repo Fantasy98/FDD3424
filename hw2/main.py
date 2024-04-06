@@ -207,7 +207,6 @@ def load_test_data():
 	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
 	return X, y
 
-
 def normal_scaling(X):
 	"""
 	Pre-processing of the data: normalisation and reshape
@@ -253,32 +252,153 @@ def one_hot_encode(y,K):
 #	W&B Intitialisation  
 #-----------------------
 #----------------------------------------------
-def init_WB(K:int,d:int,):
-	"""
-	Initialising The W&B, we use normal distribution as an initialisation strategy 
-	Args:
-		K	:	integer of the size of feature size
-		d 	:	integer of the size of label size
 
-	Returns:
-		W	:	[K,d] Numpy Array as a matrix of Weight 
-		b	:	[d,1] Numpy Array as a vector of bias
-	"""
 
-	mu = 0; sigma = 1e-2
-	W = np.random.normal(mu,sigma,size=(K,d)).astype(np.float64)
-	b = np.random.normal(mu,sigma,size=(K,1)).astype(np.float64)
+class mlp:
+	def __init__(self,K,d,m=50,
+					lamda = 0):
+		self.K  = K 
+		self.d  = d 
+		self.init_WB(K,d,m)
+		self.lamda = lamda
+
+	def forward(self,x,return_hidden=False):
+		"""
+		Forward Propagation 
+		"""
+		hidden_output= ReLU(self.W1 @ x +self.b1)# ReLU activation
+
+		scores = self.W2 @ hidden_output +self.b2
+
+		if return_hidden:
+			return softmax(scores), hidden_output 
+		else:
+			return softmax(scores) 
+
+	def cost_func(self,X,Y,return_loss = False):
+		"""
+		Compute the cost function: c = loss + regularisation 
+
+		Args: 
+			X	: [d,n] input 
+			Y	: [K,n] One-Hot Ground Truth 
+		
+		Return:
+			J	: (float) A scalar of the cost function 
+		"""
+		
+		# Part 1: compute the loss:
+		## 1 Compute prediction:
+		P = self.forward(X)
+		## Cross-entropy loss
+		# Clip the value to avoid ZERO in log
+		P = np.clip(P,1e-16,1-1e-16)
+		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
+		# Part 2: Compute the regularisation 
+		reg = self.lamda * (np.sum(self.W1**2) + np.sum(self.W2**2))
+		# Assemble the components
+		J = l_cross + reg
+		del P 
+		if return_loss:
+			return J, l_cross
+		else: 
+			return J 
+
+	def compute_acc(self,X,Y):
+		"""
+		Compute the accuracy of the classification 
+		
+		Args:
+
+			X	: [d,n] input 
+			Y	: [1,n] Ground Truth 
+			b	: [d,1] bias 
+			
+		Returns: 
+
+			acc : (float) a scalar value containing accuracy 
+		"""
+		# Generate Output with [K,n]
+		P = self.forward(X)
+		#Compute the maximum prob 
+		# [K,n] -> K[1,n]
+		P = np.argmax(P,axis=0)
+		# Compute how many true-positive samples
+		true_pos = np.sum(P == Y)
+		# Percentage on total 
+		acc =  true_pos / Y.shape[-1]
+		del P 
+		return acc
+
+	def computeGradient(self,X,Y):
+		"""
+		Compute the Gradient w.r.t the W&B 
+
+		Args:
+
+			X	: [d,n] input 
+			Y	: [1,n] Ground Truth 
+			b	: [d,1] bias 
+		
+		Returns:
+
+			dW1 : []
+		"""
+
+		# compute the difference 
+		P, hidden_output = self.forward(X,return_hidden=True)
+
+		g 	    = -(Y - P).T
+		grad_W2 = g.T @ hidden_output.T + 2*self.lamda*self.W2
+		grad_b2 = np.sum(g,axis=0).reshape(-1,1)
+		
+		g_hidden = ReLU(g @ self.W2)
+		grad_W1  = (X @ g_hidden).T + 2*self.lamda*self.W1
+		grad_b1  = np.sum(g_hidden, axis=0).reshape(-1,1)
+		
+		return grad_W2, grad_b2, grad_W1, grad_b1
+
+
+	def init_WB(self,K:int,d:int,m=50):
+		"""
+		Initialising The W&B, we use normal distribution as an initialisation strategy 
+		Args:
+			K	:	integer of the size of feature size
+			d 	:	integer of the size of label size
+			m 	:	integer of the size of Hidden layer, here is fixed to 50
+		Returns:
+			W1	:	[m,d] Numpy Array as a matrix of W1 
+			b1	:	[m,1] Numpy Array as a vector of b1
+			W2	:	[K,m] Numpy Array as a matrix of W2 
+			b2	:	[K,1] Numpy Array as a vector of b2
+		"""
+		mu = 0; sigma1 = np.sqrt(1/d); sigma2 = np.sqrt(1/m)
+		#Layer 1 
+		self.W1 = np.random.normal(mu,sigma1,size=(m,d)).astype(np.float64)
+		self.b1 = np.zeros(shape=(m,1)).astype(np.float64)
+		#Layer 2 
+		self.W2 = np.random.normal(mu,sigma2,size=(K,m)).astype(np.float64)
+		self.b2 = np.zeros(shape=(K,1)).astype(np.float64)
+		
+		print(f"INFO:W&B init: W1={self.W1.shape}, b2={self.b1.shape}")
+		print(f"INFO:W&B init: W2={self.W2.shape}, b2={self.b2.shape}")
 	
-	print(f"INFO:W&B init: W={W.shape}, b={b.shape}")
-	return W,b
-#----------------------------------------------
 
 
 
 #----------------------
-#	Forward Prop  
+#	Forward Prop  Utils
 #-----------------------
 #----------------------------------------------
+def ReLU(x):
+	"""
+	Activation function 
+	"""
+	# If x>0 x = x; If x<0 x = 0 
+	x = np.maximum(0,x)
+	return x
+
+
 def EvaluateClassifier(X,W,b):
 	"""
 	Forward Prop of the model 
@@ -387,6 +507,16 @@ def ComputeGradients(X,Y,P,W,b,lamda):
 	g 	= -(Y - P).T
 	grad_W 		= g.T @ X.T + 2*lamda*W
 	grad_b 		= np.sum(g,axis=0).reshape(-1,1)
+
+	# delta_scores = probs - y_batch
+	# dW_out = np.dot(hidden_output.T, delta_scores)
+    # db_out = np.sum(delta_scores, axis=0, keepdims=True)
+    # delta_hidden = np.dot(delta_scores, W_out.T)
+    # delta_hidden[hidden_output <= 0] = 0  # ReLU derivative
+    # dW = np.dot(X_batch.T, delta_hidden)
+    # db = np.sum(delta_hidden, axis=0, keepdims=True)
+
+
 	return grad_W, grad_b
 
 def BackProp(X,Y,W,b,lamda,eta,n_batch):
@@ -603,29 +733,38 @@ def test_code():
 
 
 	# Step 3: Initialisation of the network
-	W,b   = init_WB(K,d)
-
+	# Use the class for model implementation 
+	model = mlp(K,d)
+	
 	# Step 4: Test for forward prop
 	batch_size = 2
 	X_test  = X[:,:batch_size]
 	Y_test  = Yenc[:,:batch_size]
-	P 		= EvaluateClassifier(X_test,W,b)
+	# P 		= EvaluateClassifier(X_test,W,b)
+	P 		= model.forward(X_test)
 	print(f"INFO: Test Pred={P.shape}")
-	
+
+
 	# Step 5: Cost Function
-	J,l_cross = ComputeCost(X_test,Y_test,W,b,lamda=0,return_loss=True)
+	J,l_cross = model.cost_func(X_test,Y_test,return_loss=True)
 	print(f"INFO: The loss = {J}")
 
 	# Step 6: Examine the acc func:
-	acc = ComputeAccuracy(X,Y,W,b)
+	acc = model.compute_acc(X,Y)
 	print(f"INFO:Accuracy Score={acc*100}%") 
 
 	# Step 7 Compute the Gradient and compare to analytical solution 
 	batch_size = 1
 	X_test  = X[:,:batch_size]
 	Y_test  = Yenc[:,:batch_size]
-	P 		= EvaluateClassifier(X_test,W,b)
-	print(f"INFO: Test Pred={P.shape}")
+	P,hid_out 		= model.forward(X_test,True)
+	print(f"INFO: Test Pred={P.shape},hidden out = {hid_out.shape}")
+	
+	grad_W2, grad_b2, grad_W1, grad_b1 = model.computeGradient(X,Y)
+	print(f"Compute Gradient: W2:{grad_W2.shape},W1:{grad_W1.shape},b1:{grad_b1.shape},b2:{grad_b2.shape}")
+	
+
+	
 	lamda = 0
 	h 	  = 1e-6
 	grad_W , grad_b = ComputeGradients(X_test,
