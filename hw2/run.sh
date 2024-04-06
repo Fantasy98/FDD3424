@@ -1,1 +1,1 @@
-python main.py | tee logrun.out 
+python main.py -m train | tee logTrain.out

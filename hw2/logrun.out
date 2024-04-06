@@ -12,8 +12,22 @@ INFO: Test Pred=(10, 2)
 INFO: The loss = 2.606873297963619
 INFO:Accuracy Score=9.5%
 INFO: Test Pred=(10, 1),hidden out = (50, 1)
-(10, 50)
-(10, 1)
-(10000, 10) (10, 50)
-(10000, 50)
 Compute Gradient: W2:(10, 50),W1:(50, 3072),b1:(50, 1),b2:(10, 1)
+INFO: Compute W2 Grad
+INFO: Compute b2 Grad
+INFO: Compute W1 Grad
+INFO: Compute b1 Grad
+Central Method
+Comparison: Prop Error for W1:3.400e-01
+Comparison: Prop Error for B1:3.400e-01
+Comparison: Prop Error for W2:4.494e-09
+Comparison: Prop Error for B2:3.554e-10
+INFO: Compute W2 Grad
+INFO: Compute b2 Grad
+INFO: Compute W1 Grad
+INFO: Compute b1 Grad
+Implict Method
+Comparison: Prop Error for W1:3.400e-01
+Comparison: Prop Error for B1:3.400e-01
+Comparison: Prop Error for W2:7.507e-08
+Comparison: Prop Error for B2:2.037e-07
