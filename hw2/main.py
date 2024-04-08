@@ -34,8 +34,9 @@ pathlib.Path('Figs/').mkdir(exist_ok=True)
 pathlib.Path('data/').mkdir(exist_ok=True)
 pathlib.Path('weights/').mkdir(exist_ok=True)
 font_dict = {'size':20,'weight':'bold'}
+fig_dict = {'bbox_inches':'tight','dpi':300}
 # Setup the random seed
-np.random.seed(400)
+np.random.seed(2048)
 # Set the global variables
 global K, d, label
 
@@ -209,11 +210,24 @@ def montage(W,label):
 			ax[i][j].axis('off')
 	return fig, ax 
 
-def save_as_mat(data, name):
+def save_as_mat(model,hist,name):
 	""" Used to transfer a python model to matlab """
 	import scipy.io as sio
 	sio.savemat(name + '.mat',
-			data)
+			{
+				"W1":model.W1,
+				"W2":model.W2,
+				"b1":model.b1,
+				"b2":model.b2,
+				'train_loss':np.array(hist['train_loss']),
+				'train_cost':np.array(hist['train_cost']),
+				'val_loss':np.array(hist['val_loss']),
+				'val_cost':np.array(hist['val_cost']),
+				})
+	
+def name_case(n_s,eta_min,eta_max,n_batch,n_epochs):
+	case_name = f"W&B_{n_batch}BS_{n_epochs}Epoch_{n_s}NS_{eta_min:.3e}MINeta_{eta_max:.3e}MAXeta"
+	return case_name
 #-----------------------------------------------
 
 
@@ -349,16 +363,16 @@ class mlp:
 		Return:
 			J	: (float) A scalar of the cost function 
 		"""
-		
+		import numpy.linalg as LA
 		# Part 1: compute the loss:
 		## 1 Compute prediction:
 		P = self.forward(X)
 		## Cross-entropy loss
 		# Clip the value to avoid ZERO in log
-		P = np.clip(P,1e-16,1-1e-16)
+		P = np.clip(P,1e-8,1-1e-8)
 		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
 		# Part 2: Compute the regularisation 
-		reg = self.lamda * (np.sum(self.W1**2) + np.sum(self.W2**2))
+		reg = self.lamda * (np.sum(self.W1**2) + np.sum(self.W2**2)  )
 		# Assemble the components
 		J = l_cross + reg
 		if return_loss:
@@ -420,13 +434,13 @@ class mlp:
 		gb2 	= np.sum(g,axis=0).reshape(-1,1)
 		
 		# Gradient for hidden layer 
-		g_hidden =g @ self.W2
-		g_hidden[hidden_output.T<0] = 0
-		g_hidden = np.clip(g_hidden,1e-24,1-1e-24)
+		g=g @ self.W2
 
-		gW1  = g_hidden.T @ x.T 
-		gb1  = np.sum(g_hidden, axis=0).reshape(-1,1)
+		g[hidden_output.T <=0] = 0
 		
+		gW1  = g.T @ x.T 
+		gb1  = np.sum(g, axis=0).reshape(-1,1)
+
 		return gW2, gb2, gW1, gb1
 
 	def backward(self,x,y,eta,batch_size):
@@ -434,55 +448,65 @@ class mlp:
 		grad_W2, grad_b2, grad_W1, grad_b1 = self.computeGradient(x,y)
 		# print(f"Grad W1 min: {grad_W1.min()}, Grad W2 min: {grad_W2.min()}")
 
-		self.W1 -= (1/batch_size) * eta * (grad_W1) + 2*self.lamda*self.W1
-		self.b1 -= (1/batch_size) * eta * (grad_b1)
-		self.W2 -= (1/batch_size) * eta * (grad_W2) + 2*self.lamda*self.W2
-		self.b2 -= (1/batch_size) * eta * (grad_b2)
+		self.W1 = self.W1 - (1/batch_size) * eta * ((grad_W1) + 2*self.lamda*self.W1 )
+		
+		self.b1 = self.b1 -   (1/batch_size) * eta * (grad_b1)
+		
+		self.W2 = self.W2 - (1/batch_size) * eta * ((grad_W2) + 2*self.lamda*self.W2 )
+		
+		self.b2 = self.b2 -   (1/batch_size) * eta * (grad_b2)
 
 	
-	def train(self,X,Y,X_val,Y_val,GDparams):
+	def train(self,X,Y,X_val,Y_val,lr_sch,n_epochs,n_batch):
 		
-		print('Start Training')
+		print(f'Start Training, Batch Size = {n_batch}')
 		lenX = X.shape[-1]
-		batch_size = GDparams.n_batch
-		batch_range = np.arange(1,lenX//GDparams.n_batch)
-		
+		batch_size = n_batch
+		batch_range = np.arange(0,lenX//n_batch)
+
 		hist = {}; hist['train_cost'] = []; hist['val_cost'] = []
 		hist['train_loss'] = []; hist['val_loss'] = []
 
 		st = time.time()
-		for epoch in (range(GDparams.n_epochs)): 
+		for epoch in (range(n_epochs)): 
+			
 			# Shuffle the batch indicites 
 			indices = np.random.permutation(lenX)
 			X_ = X[:,indices]
 			Y_ = Y[:,indices]
 			
 			for b in (batch_range):
+
+				lr_sch.update_lr()
+				
 				X_batch = X_[:,b*batch_size:(b+1)*batch_size]
 				Y_batch = Y_[:,b*batch_size:(b+1)*batch_size]
 				
-				self.backward(X_batch,Y_batch,
-							GDparams.eta,
-							batch_size)
+				self.backward(  X_batch,
+								Y_batch,
+								lr_sch.eta,
+								batch_size)
 				
-			jc,l_train = self.cost_func(X,Y,return_loss=True)
-			hist['train_cost'].append(jc)
-			hist['train_loss'].append(l_train)
-		
-			jc_val,l_val  = self.cost_func(X_val,Y_val,return_loss=True)
-			hist['val_cost'].append(jc_val)
-			hist['val_loss'].append(l_val)
+				jc,l_train = self.cost_func(X,Y,return_loss=True)
+				hist['train_cost'].append(jc)
+				hist['train_loss'].append(l_train)
+			
+				jc_val,l_val  = self.cost_func(X_val,Y_val,return_loss=True)
+				hist['val_cost'].append(jc_val)
+				hist['val_loss'].append(l_val)
 
-			print(f"\nAt Epoch =({epoch+1}/{GDparams.n_epochs}),\n"+\
-				f" Train Cost ={hist['train_cost'][-1]}, Val Cost ={hist['val_cost'][-1]}\n"+\
-				f" Train Loss ={hist['train_loss'][-1]}, Val Loss ={hist['val_loss'][-1]}"
-				)
+				print(f"\nAt Step =({lr_sch.t}/{n_epochs*lenX//batch_size}),\n"+\
+					f" Train Cost ={hist['train_cost'][-1]}, Val Cost ={hist['val_cost'][-1]}\n"+\
+					f" Train Loss ={hist['train_loss'][-1]}, Val Loss ={hist['val_loss'][-1]}\n"+\
+					f" The LR = {lr_sch.eta:.3e}"
+					)
 		et 	=  time.time()
 		self.cost_time = et - st 
 		print(f"INFO: Training End, Cost Time = {self.cost_time:.2f}")
-		self.hist = hist 
+		self.hist = hist
 
 		return self.hist
+	
 
 
 	def init_WB(self,K:int,d:int,m=50):
@@ -578,7 +602,7 @@ def ComputeCost(X,Y,W1,b1,W2,b2,lamda,return_loss = False):
 	else: 
 		return J 
 	
-def ComputeAccuracy(X,Y,W,b):
+def ComputeAccuracy(X,Y,P):
 	"""
 	Compute the accuracy of the classification 
 	
@@ -586,17 +610,14 @@ def ComputeAccuracy(X,Y,W,b):
 
 		X	: [d,n] input 
 		Y	: [1,n] Ground Truth 
-		W 	: [K,d] Weight 
-		b	: [d,1] bias 
-		
+		P	: [K,n] Prediction 
+
 	Returns: 
 
 		acc : (float) a scalar value containing accuracy 
 	"""
 
-	# Generate Output with [K,n]
-	P = EvaluateClassifier(X,W,b)
-
+	
 	#Compute the maximum prob 
 	# [K,n] -> K[1,n]
 	P = np.argmax(P,axis=0)
@@ -666,11 +687,10 @@ def Prop_Error(ga,gn,eps):
 #	Training 
 #-----------------------
 #----------------------------------------------
-def cyclinal_lr(t,
-				eta_min, eta_max,
-				n_epoch, n_batch,
-				k):
-	"""
+
+class lr_scheduler:
+	def __init__(self,eta_max,eta_min,n_s):
+		"""
 	cyclinal learning rate during training
 	
 	Args: 
@@ -680,31 +700,39 @@ def cyclinal_lr(t,
 
 		eta_max: Upper bound of learning rate 
 
-		n_epoch    :  number of epoch  
+		n_s		: How many epoch per cycle 
+		"""
+
+		self.eta_min = eta_min
+		self.eta_max = eta_max
+		self.n_s 	 = n_s
+		self.eta 	 = eta_min
+		self.hist    = []
+		self.t 		 = 0
+	def update_lr(self):
+		"""
+		Update the LR
 		
-		n_batch    :   number of batch size 
-
-		k    	   :   An integer between 2 and 8 
-	
-	Return: 
-		eta		: The current learning rate 
-	"""
-
-	# Step 1 Compute the step size
-	n_s = k * n_epoch/n_batch 
-
-	# Step 2: compute the milestone  
-	cycle = np.floor(1+t/(2*n_s))
-	x = np.abs(t / n_s - 2 * cycle + 1)
-
-	# Step 3: Compute the learning rate 
-	eta = eta_min + (eta_max - eta_min) * np.maximum(0, (1 - x))
-	
-	return eta
-	
+		"""
 
 
+		# cycle = np.floor(1+self.t/(2*self.n_s))
+		cycle = int(self.t//(2*self.n_s))
+		# x = abs(self.t / self.step_size - 2 * cycle + 1)
+		
+		if (2 * cycle * self.n_s <= self.t) and (self.t <= (2 * cycle + 1) * self.n_s):
+			
+			self.eta=self.eta_min+(self.t-2*cycle*self.n_s)/\
+					self.n_s*(self.eta_max-self.eta_min)
+			
 
+		elif ((2 * cycle +1) * self.n_s <= self.t) and (self.t <= 2*( cycle + 1) * self.n_s) :
+			
+			self.eta=self.eta_max-(self.t-(2*cycle+1)*self.n_s)/\
+					self.n_s*(self.eta_max-self.eta_min)
+		
+		self.hist.append(self.eta)
+		self.t +=1
 #----------------------
 #	Post-Processing 
 #-----------------------
@@ -720,14 +748,20 @@ def plot_loss(loss,fig=None,axs=None,color=None,ls=None):
 	axs.set_ylabel('Loss')
 	return fig, axs 
 
-
+def plot_hist(hist,n_epochs):
+	fig, axs = plot_loss(hist['train_cost'][::n_epochs],color = colorplate.red,ls = '-')
+	fig, axs = plot_loss(hist['train_loss'][::n_epochs],fig,axs,color = colorplate.red,ls = '-.')
+	fig, axs = plot_loss(hist['val_cost'][::n_epochs],fig,axs,color =colorplate.blue, ls = '-')
+	fig, axs = plot_loss(hist['val_loss'][::n_epochs],fig,axs,color =colorplate.blue, ls = '-.')
+	axs.legend(['Train Cost',"Train Loss", "Val Cost", "Val Loss"])
+	return fig, axs 
 
 
 #----------------------
 #	Main Programm
 #-----------------------
 #----------------------------------------------
-def test_code():
+def ExamCode():
 	"""Test the functions for the assignments """
 
 	print("#"*30)
@@ -748,30 +782,34 @@ def test_code():
 
 	# Step 2: Scaling the data
 	X,muX,stdX 		= normal_scaling(X)
-	X_val			= (X_val - muX / stdX)
+	X_val,_,_	    = normal_scaling(X_val)
 
 
-	# Step 3*: Test the cyclinal_lr 
-	n_epoch = 20; n_batch = 100; eta_min = 1e-3; eta_max = 1e-2; k=2
+	# Step 3*: Test the cyclinal_lr
+	lr_dict = {"n_s":500,"eta_min":1e-5,"eta_max":1e-1} 
 	etas = []
+	lr_sch = lr_scheduler(**lr_dict)
+	n_epoch = 10
 	for l in range(n_epoch):
-		eta = cyclinal_lr(l,eta_min, eta_max,n_epoch,n_batch,k)
-		etas.append(eta)
+		for b in range(100):
+			lr_sch.update_lr()
+			
 	fig, axs = plt.subplots(1,1,figsize=(6,4))
-	axs.plot(range(n_epoch),etas,'-o',c=colorplate.black,lw=2)
+	axs.semilogy(range(len(lr_sch.hist)),lr_sch.hist,'-o',c=colorplate.black,lw=2)
 	axs.set_xlabel('Epoch',font_dict)
 	axs.set_ylabel(r'$\eta$',font_dict)
 	fig.savefig('Figs/LR_schedule.jpg',bbox_inches='tight',dpi=300)
 
 
-	# Step 3: Initialisation of the network
-	# Use the class for model implementation 
-	model = mlp(K,d)
+	#Step 3: Initialisation of the network
+	#Use the class for model implementation 
+	model = mlp(K,d,lamda=0.01)
 	
 	# Step 4: Test for forward prop
 	batch_size = 1
 	X_test  = X[:,:batch_size]
 	Y_test  = Yenc[:,:batch_size]
+	
 	# P 		= EvaluateClassifier(X_test,W,b)
 	P 		= model.forward(X_test)
 	print(f"INFO: Test Pred={P.shape}")
@@ -785,67 +823,88 @@ def test_code():
 	acc = model.compute_acc(X,Y)
 	print(f"INFO:Accuracy Score={acc*100}%") 
 
-	# Step 7 Compute the Gradient and compare to analytical solution 
-	batch_size = 1
-	X_test  = X[:,:batch_size]
-	Y_test  = Yenc[:,:batch_size]
-	P,hid_out 		= model.forward(X_test,True)
-	print(f"INFO: Test Pred={P.shape},hidden out = {hid_out.shape}")
 	
-	grad_W2, grad_b2, grad_W1, grad_b1 = model.computeGradient(X_test,Y_test)
-	print(f"Compute Gradient: W2:{grad_W2.shape},W1:{grad_W1.shape},b1:{grad_b1.shape},b2:{grad_b2.shape}")
+	# Step 7 Compute the Gradient and compare to analytical solution 
+	compute_grad = False
+	if compute_grad: 
+		batch_size = 1
+		X_test  = X[:,:batch_size]
+		Y_test  = Yenc[:,:batch_size]
+		P,hid_out 		= model.forward(X_test,True)
+		print(f"INFO: Test Pred={P.shape},hidden out = {hid_out.shape}")
+		
+		grad_W2, grad_b2, grad_W1, grad_b1 = model.computeGradient(X_test,Y_test)
+		print(f"Compute Gradient: W2:{grad_W2.shape},W1:{grad_W1.shape},b1:{grad_b1.shape},b2:{grad_b2.shape}")
 
-	quit()
+		h 	  = 1e-6
+		grad_error = {}
+		grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNumSlow(X_test,
+																		Y_test,
+																		model,
+																		h=h)
+		print("Central Method")
+		ew = Prop_Error(grad_W1,grad_W1_n,h)
+		eb = Prop_Error(grad_b1,grad_b1_n,h)
+		print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
+		print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
+		grad_error["central_w1"] = ew.mean().reshape(-1,)
+		grad_error["central_b1"] = eb.mean().reshape(-1,)
 
-	lamda = 0
-	h 	  = 1e-6
+		ew = Prop_Error(grad_W2,grad_W2_n,h)
+		eb = Prop_Error(grad_b2,grad_b2_n,h)
+		print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
+		print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
+		grad_error["central_w2"] = ew.mean().reshape(-1,)
+		grad_error["central_b2"] = eb.mean().reshape(-1,)
 
-	grad_error = {}
-
-	grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNumSlow(X_test,
+		grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNum(X_test,
 																	Y_test,
 																	model,
 																	h=h)
-	print("Central Method")
-	ew = Prop_Error(grad_W1,grad_W1_n,h)
-	eb = Prop_Error(grad_b1,grad_b1_n,h)
-	print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
-	print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
-	grad_error["central_w1"] = ew.mean().reshape(-1,)
-	grad_error["central_b1"] = eb.mean().reshape(-1,)
+		
+		
+		print("Implict Method")
+		ew = Prop_Error(grad_W1,grad_W1_n,h)
+		eb = Prop_Error(grad_b1,grad_b1_n,h)
+		print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
+		print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
+		grad_error["forward_b1"] = eb.mean().reshape(-1,)
+		grad_error["forward_w1"] = ew.mean().reshape(-1,)
 
-	ew = Prop_Error(grad_W2,grad_W2_n,h)
-	eb = Prop_Error(grad_b2,grad_b2_n,h)
-	print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
-	print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
-	grad_error["central_w2"] = ew.mean().reshape(-1,)
-	grad_error["central_b2"] = eb.mean().reshape(-1,)
+		ew = Prop_Error(grad_W2,grad_W2_n,h)
+		eb = Prop_Error(grad_b2,grad_b2_n,h)
+		print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
+		print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
+		grad_error["forward_w2"] = ew.mean().reshape(-1,)
+		grad_error["forward_b2"] = eb.mean().reshape(-1,)
 
+		df = pd.DataFrame(grad_error)
+		df.to_csv("Gradient_compute.csv",float_format="%.3e")
 
-	grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNum(X_test,
-																Y_test,
-																model,
-																h=h)
 	
 	
-	print("Implict Method")
-	ew = Prop_Error(grad_W1,grad_W1_n,h)
-	eb = Prop_Error(grad_b1,grad_b1_n,h)
-	print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
-	print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
-	grad_error["forward_b1"] = eb.mean().reshape(-1,)
-	grad_error["forward_w1"] = ew.mean().reshape(-1,)
+	# Step 8 Run a small case to check if the lr scheduler works 
+	lr_dict = {"n_s":500,"eta_min":1e-5,"eta_max":1e-1} 
+	train_dict = {'n_batch':100,'n_epochs':10}
 
+	filename = name_case(**lr_dict, **train_dict)
+	print(f"INFO: Start CASE: {filename}")
+	lr_sch  = lr_scheduler(**lr_dict)
+	model 	= mlp(K,d,m=50,lamda=0.01)
+	
+	hist = model.train(X,Yenc,X_val,Yenc_val,lr_sch,**train_dict)
+	save_as_mat(model,hist,"weights/" + filename)
+	print(f"W&B Saved!")
+	fig, axs = plot_hist(hist,10*10)
+	axs.set_xlabel('Update Step')
+	fig.savefig(f'Figs/Loss_{filename}.jpg',**fig_dict)
 
-	ew = Prop_Error(grad_W2,grad_W2_n,h)
-	eb = Prop_Error(grad_b2,grad_b2_n,h)
-	print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
-	print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
-	grad_error["forward_w2"] = ew.mean().reshape(-1,)
-	grad_error["forward_b2"] = eb.mean().reshape(-1,)
-
-	df = pd.DataFrame(grad_error)
-	df.to_csv("Gradient_compute.csv",float_format="%.3e")
+	X_test,Y_test = load_test_data()
+	X_test,_,_ = normal_scaling(X_test)
+	
+	acc = ComputeAccuracy(X_test,Y_test,P=model.forward(X_test))
+	print(f"Acc ={acc*100}")
+	print("#"*30)
 
 
 def train():
@@ -874,27 +933,12 @@ def train():
 	hist = model.train(X[:,:100],Yenc[:,:100],X_val[:,:100],Yenc_val[:,:100],
 						GDparams)
 	
-	# # Step 5: Save the data
-	# save_as_mat({
-	# 			"W1":model.W1,
-	# 			"W2":model.W2,
-	# 			"b1":model.b1,
-	# 			"b2":model.b2,
-	# 			'train_loss':np.array(hist['train_loss']),
-	# 			'train_cost':np.array(hist['train_cost']),
-	# 			'val_loss':np.array(hist['val_loss']),
-	# 			'val_cost':np.array(hist['val_cost']),
-	# 			},
-
-	# 			"weights/" + filename)
-	# print(f"W&B Saved!")
+	# Step 5: Save the data
+	save_as_mat(model,hist,"weights/" + filename)
+	print(f"W&B Saved!")
 	
 	# Step 6: Visualisation of loss/cost function
-	fig, axs = plot_loss(hist['train_cost'],color = colorplate.red,ls = '-')
-	fig, axs = plot_loss(hist['train_loss'],fig,axs,color = colorplate.red,ls = '-.')
-	fig, axs = plot_loss(hist['val_cost'],fig,axs,color =colorplate.blue, ls = '-')
-	fig, axs = plot_loss(hist['val_loss'],fig,axs,color =colorplate.blue, ls = '-.')
-	axs.legend(['Train Cost',"Train Loss", "Val Cost", "Val Loss"])
+	fig,axs = plot_hist(hist)
 	fig.savefig(f'Figs/Loss_{filename}.jpg',dpi=300,bbox_inches='tight')
 	print("#"*30)
 
@@ -1056,7 +1100,7 @@ def postProcessing():
 if __name__ == "__main__":
 
 	if args.m == 'test':
-		test_code()
+		ExamCode()
 	elif args.m == 'train':
 		train()
 	elif args.m == 'eval':
