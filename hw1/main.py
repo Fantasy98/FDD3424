@@ -355,7 +355,7 @@ def ComputeGradients(X,Y,P,W,b,lamda):
 	"""
 
 	# compute the difference 
-	g 	= -(Y - P).T
+	g 			= -(Y - P).T
 	grad_W 		= g.T @ X.T + 2*lamda*W
 	grad_b 		= np.sum(g,axis=0).reshape(-1,1)
 	return grad_W, grad_b
