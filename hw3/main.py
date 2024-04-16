@@ -1,10 +1,10 @@
 """
 Assignment 2
 
-Training for a binary Classifier for 2 Layer 
+MLP with BatchNorm 
 
 @yuningw
-Apr 6th, 2024 
+Apr 16h, 2024 
 """
 ##########################################
 ## Environment and general setup 
@@ -147,14 +147,14 @@ def LoadBatch():
 	"""
 	
 	dt = readPickle("data_batch_1")
-	X 		= np.array(dt[b'data']).astype(np.float32).T
-	y 		= np.array(dt[b'labels']).astype(np.float32).flatten()
+	X 		= np.array(dt[b'data']).astype(np.float64).T
+	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	print(f"TRAIN X: {X.shape}")
 	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
 	
 	dt = readPickle("data_batch_2")
-	X_val 		= np.array(dt[b'data']).astype(np.float32).T
-	y_val 		= np.array(dt[b'labels']).astype(np.float32).flatten()
+	X_val 		= np.array(dt[b'data']).astype(np.float64).T
+	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	print(f"Val X: {X.shape}")
 	print(f"Val Y:{y.shape}, here are {len(np.unique(y))} Labels")
 
@@ -166,8 +166,8 @@ def LoadAll():
 	X = []; y = []
 	for n in range(5):
 		dt = readPickle(f"data_batch_{n+1}")
-		X_ = np.array(dt[b'data']).astype(np.float32).T
-		y_ = np.array(dt[b'labels']).astype(np.float32).flatten()
+		X_ = np.array(dt[b'data']).astype(np.float64).T
+		y_ = np.array(dt[b'labels']).astype(np.float64).flatten()
 		X.append(X_)
 		y.append(y_)
 	
@@ -187,8 +187,8 @@ def load_test_data():
 		Y	: [1,n]  
 	"""
 	dt = readPickle("test_batch")
-	X 		= np.array(dt[b'data']).astype(np.float32).T
-	y 		= np.array(dt[b'labels']).astype(np.float32).flatten()
+	X 		= np.array(dt[b'data']).astype(np.float64).T
+	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
 	print(f"TEST X: {X.shape}")
 	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
 	return X, y
@@ -204,8 +204,8 @@ def normal_scaling(X):
 		mean_x 	: Mean value of X for sample
 		std_x	: STD of X 
 	"""
-	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float32)
-	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float32)
+	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
+	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
 	# print(f"The Mean={mean_x.shape}; Std = {std_x.shape}")	
 	print(f"INFO: Complete Normalisation")
 
@@ -223,7 +223,7 @@ def one_hot_encode(y,K):
 
 	"""
 
-	y_hat = np.zeros(shape=(K, len(y))).astype(np.float32)
+	y_hat = np.zeros(shape=(K, len(y))).astype(np.float64)
 	
 	for il, yi in enumerate(y):
 		y_hat[int(yi),il] = 1
@@ -312,6 +312,8 @@ class mlp:
 	def __init__(self,K,d,
 			  		h_size=[50],
 					lamda=0,
+					ifact= True,
+					ifBN = True
 				):
 		self.K  = K 
 		self.d  = d 
@@ -319,11 +321,19 @@ class mlp:
 		self.init_WB(K,d,h_size)
 		self.lamda = lamda
 		print(f"INFO: Model initialised: LAMBDA = {self.lamda:3e} K={self.K}, d={self.d}, m={self.m}")
+		
+
+		# More dictionary for computation
+		self.layerout = {}
+		self.W_grad = {}
+		self.b_grad = {}
 
 	def forward(self,x,return_hidden=False):
 		"""
 		Forward Propagation 
 		"""
+
+
 		hidden_output= self.W1 @ x +self.b1 # ReLU activation
 
 		scores = self.W2 @ ReLU(hidden_output) +self.b2
@@ -533,16 +543,31 @@ class mlp:
 
 		"""
 		mu = 0
+		self.W_dict= {}
+		self.b_dict= {}
 		
-		#Layer 1 
-		self.W1 = np.random.normal(loc=mu,scale=1e-3,size=(m,d)).astype(np.float32)
-		self.b1 = np.zeros(shape=(m,1)).astype(np.float32)
+		num_hidden = len(m)
+		
+		for i,h_size in enumerate(m):
+			keyW = f"W{i+1}"
+			keyb = f"b{i+1}"
+			if i==0:
+				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,d)).astype(np.float64)
+				self.b_dict[keyb] = np.zeros(shape=(h_size,1)).astype(np.float64)
+			else:	
+				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,m[i-1])).astype(np.float64)
+				self.b_dict[keyb] = np.zeros(shape=(h_size,1)).astype(np.float64)
+
+			print(f"INFO:W&B init: {keyW}={self.W_dict[keyW].shape}, {keyb}={self.b_dict[keyb].shape}")
+
 		#Layer 2 
-		self.W2 = np.random.normal(loc=mu,scale=1e-3,size=(K,m)).astype(np.float32)
-		self.b2 = np.zeros(shape=(K,1)).astype(np.float32)
+		keyW = f"W{num_hidden+1}"
+		keyb = f"b{num_hidden+1}"
+		lend = m[-1]
+		self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(K,lend)).astype(np.float64)
+		self.b_dict[keyb] = np.zeros(shape=(K,1)).astype(np.float64)
 		
-		print(f"INFO:W&B init: W1={self.W1.shape}, b2={self.b1.shape}")
-		print(f"INFO:W&B init: W2={self.W2.shape}, b2={self.b2.shape}")
+		print(f"INFO: Last W&B init: {keyW}={self.W_dict[keyW].shape}, {keyb}={self.b_dict[keyb].shape}")
 	
 
 
@@ -904,7 +929,7 @@ def ExamCode():
 	# Step 1: Load data
 	X, Yenc, X_val,Y_val,X_test,Y_test = dataLoader_OneBatch()
 	# Define the feature size and label size
-	K = len(np.unique(Y_test)); d = X.shape[0]
+	K = 10; d = 3072
 	# One-Hot encoded for Y 
 	print(f"Global K={K}, d={d}")
 
@@ -913,8 +938,10 @@ def ExamCode():
 	#Step 4: Initialisation of the network
 	#---------------------------------------------
 	#Use the class for model implementation 
-	model = mlp(K,d,lamda=0.0)
+	model = mlp(K,d,h_size=[50,10,10],lamda=0.0)
 	
+
+	quit()
 	# Step 4: Test for forward prop
 	batch_size  = 1
 	X_test  	= X[:,:batch_size]
