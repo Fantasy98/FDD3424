@@ -147,14 +147,14 @@ def LoadBatch():
 	"""
 	
 	dt = readPickle("data_batch_1")
-	X 		= np.array(dt[b'data']).astype(np.float64).T
-	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
+	X 		= np.array(dt[b'data']).astype(np.float32).T
+	y 		= np.array(dt[b'labels']).astype(np.float32).flatten()
 	print(f"TRAIN X: {X.shape}")
 	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
 	
 	dt = readPickle("data_batch_2")
-	X_val 		= np.array(dt[b'data']).astype(np.float64).T
-	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
+	X_val 		= np.array(dt[b'data']).astype(np.float32).T
+	y_val 		= np.array(dt[b'labels']).astype(np.float32).flatten()
 	print(f"Val X: {X.shape}")
 	print(f"Val Y:{y.shape}, here are {len(np.unique(y))} Labels")
 
@@ -166,8 +166,8 @@ def LoadAll():
 	X = []; y = []
 	for n in range(5):
 		dt = readPickle(f"data_batch_{n+1}")
-		X_ = np.array(dt[b'data']).astype(np.float64).T
-		y_ = np.array(dt[b'labels']).astype(np.float64).flatten()
+		X_ = np.array(dt[b'data']).astype(np.float32).T
+		y_ = np.array(dt[b'labels']).astype(np.float32).flatten()
 		X.append(X_)
 		y.append(y_)
 	
@@ -187,8 +187,8 @@ def load_test_data():
 		Y	: [1,n]  
 	"""
 	dt = readPickle("test_batch")
-	X 		= np.array(dt[b'data']).astype(np.float64).T
-	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
+	X 		= np.array(dt[b'data']).astype(np.float32).T
+	y 		= np.array(dt[b'labels']).astype(np.float32).flatten()
 	print(f"TEST X: {X.shape}")
 	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
 	return X, y
@@ -204,8 +204,8 @@ def normal_scaling(X):
 		mean_x 	: Mean value of X for sample
 		std_x	: STD of X 
 	"""
-	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
-	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
+	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float32)
+	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float32)
 	# print(f"The Mean={mean_x.shape}; Std = {std_x.shape}")	
 	print(f"INFO: Complete Normalisation")
 
@@ -223,7 +223,7 @@ def one_hot_encode(y,K):
 
 	"""
 
-	y_hat = np.zeros(shape=(K, len(y))).astype(np.float64)
+	y_hat = np.zeros(shape=(K, len(y))).astype(np.float32)
 	
 	for il, yi in enumerate(y):
 		y_hat[int(yi),il] = 1
@@ -309,13 +309,14 @@ def dataLoader_FullBatch(split_ratio=0.1):
 #----------------------------------------------
 
 class mlp:
-	def __init__(self,K,d,m=50,
+	def __init__(self,K,d,
+			  		h_size=[50],
 					lamda=0,
 				):
 		self.K  = K 
 		self.d  = d 
-		self.m  = m 
-		self.init_WB(K,d,m)
+		self.m  = h_size 
+		self.init_WB(K,d,h_size)
 		self.lamda = lamda
 		print(f"INFO: Model initialised: LAMBDA = {self.lamda:3e} K={self.K}, d={self.d}, m={self.m}")
 
@@ -518,26 +519,27 @@ class mlp:
 	
 
 
-	def init_WB(self,K:int,d:int,m=50):
+	def init_WB(self,K:int,d:int,m:list):
 		"""
 		Initialising The W&B, we use normal distribution as an initialisation strategy 
 		Args:
 			K	:	integer of the size of feature size
 			d 	:	integer of the size of label size
-			m 	:	integer of the size of Hidden layer, here is fixed to 50
+			m 	:	A list of integer of the size of Hidden layer, here is fixed to 50
 		Returns:
-			W1	:	[m,d] Numpy Array as a matrix of W1 
-			b1	:	[m,1] Numpy Array as a vector of b1
-			W2	:	[K,m] Numpy Array as a matrix of W2 
-			b2	:	[K,1] Numpy Array as a vector of b2
+			W_dict : dictionary for all the Weight 
+			
+			b_dict : dictionary for all the bias
+
 		"""
-		mu = 0; sigma1 = 1/np.sqrt(d); sigma2 = 1/np.sqrt(m)
+		mu = 0
+		
 		#Layer 1 
-		self.W1 = np.random.normal(loc=mu,scale=sigma1,size=(m,d)).astype(np.float64)
-		self.b1 = np.zeros(shape=(m,1)).astype(np.float64)
+		self.W1 = np.random.normal(loc=mu,scale=1e-3,size=(m,d)).astype(np.float32)
+		self.b1 = np.zeros(shape=(m,1)).astype(np.float32)
 		#Layer 2 
-		self.W2 = np.random.normal(loc=mu,scale=sigma2,size=(K,m)).astype(np.float64)
-		self.b2 = np.zeros(shape=(K,1)).astype(np.float64)
+		self.W2 = np.random.normal(loc=mu,scale=1e-3,size=(K,m)).astype(np.float32)
+		self.b2 = np.zeros(shape=(K,1)).astype(np.float32)
 		
 		print(f"INFO:W&B init: W1={self.W1.shape}, b2={self.b1.shape}")
 		print(f"INFO:W&B init: W2={self.W2.shape}, b2={self.b2.shape}")
@@ -657,10 +659,10 @@ def ComputeGradsNum(X, Y, W1, b1, W2, b2, h):
 	
 	"""
 
-	grad_W1 = np.zeros_like(W1).astype(np.float64);
-	grad_b1 = np.zeros_like(b1).astype(np.float64);
-	grad_W2 = np.zeros_like(W2).astype(np.float64);
-	grad_b2 = np.zeros_like(b2).astype(np.float64);
+	grad_W1 = np.zeros_like(W1);
+	grad_b1 = np.zeros_like(b1);
+	grad_W2 = np.zeros_like(W2);
+	grad_b2 = np.zeros_like(b2);
 
 	c1 = ComputeCost(X,Y,W1,b1,W2,b2,0)
 			
@@ -708,10 +710,10 @@ def ComputeGradsNumSlow(X, Y,W1, b1, W2, b2, h):
 	
 	"""
 
-	grad_W1 = np.zeros_like(W1).astype(np.float64);
-	grad_b1 = np.zeros_like(b1).astype(np.float64);
-	grad_W2 = np.zeros_like(W2).astype(np.float64);
-	grad_b2 = np.zeros_like(b2).astype(np.float64);
+	grad_W1 = np.zeros_like(W1);
+	grad_b1 = np.zeros_like(b1);
+	grad_W2 = np.zeros_like(W2);
+	grad_b2 = np.zeros_like(b2);
 
 	for i in range(W2.shape[0]):
 		for j in range(W2.shape[1]):
@@ -778,7 +780,6 @@ def Prop_Error(ga,gn,eps):
 	summ  = np.abs(ga)+np.abs(gn)
 
 	return np.abs(ga-gn)/np.maximum(eps_m,summ)
-	# return np.abs(ga-gn)/np.maximum(np.abs(ga),np.abs(gn))
 
 
 
@@ -901,57 +902,13 @@ def ExamCode():
 	print(f"Testing Functions:")
 
 	# Step 1: Load data
-	X, Y,X_val,Y_val = LoadBatch()
+	X, Yenc, X_val,Y_val,X_test,Y_test = dataLoader_OneBatch()
 	# Define the feature size and label size
-	K = len(np.unique(Y)); d = X.shape[0]
+	K = len(np.unique(Y_test)); d = X.shape[0]
 	# One-Hot encoded for Y 
-	Yenc 	 = one_hot_encode(Y,K)
-	Y_val 	 = one_hot_encode(Y_val,K)
 	print(f"Global K={K}, d={d}")
 
-
-	# Step 2: Scaling the data
-	X, muX, stdX 		= normal_scaling(X)
-	X_val				= ( X - muX )/stdX
-
-
-	# Step 3*: Test the cyclinal_lr
-	#---------------------------------------------
-	lr_dict = {"n_s":500,"eta_min":1e-5,"eta_max":1e-1} 
-	etas = []
-	lr_sch = lr_scheduler(**lr_dict)
-	n_epoch = 10
-	for l in range(n_epoch):
-		for b in range(100):
-			lr_sch.update_lr()
-			
-	fig, axs = plt.subplots(1,1,figsize=(6,4))
-	print(f"Maximum eta= {max(lr_sch.hist)}, Minimum eta = {min(lr_sch.hist)}")
-	axs.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.1e'))
-	axs.plot(range(len(lr_sch.hist)),lr_sch.hist,'o',markersize=1.5,c=colorplate.black,lw=2)
-	axs.set_yticks([1e-5,1e-1])
-	axs.set_xlabel('Update Step',font_dict)
-	axs.set_ylabel(r'$\eta_t$',font_dict)
-	fig.savefig('Figs/LR_schedule_1.jpg',bbox_inches='tight',dpi=300)
-
-	lr_dict = {"n_s":800,"eta_min":1e-5,"eta_max":1e-1} 
-	etas = []
-	lr_sch = lr_scheduler(**lr_dict)
-	n_epoch = 48
-	for l in range(n_epoch):
-		for b in range(100):
-			lr_sch.update_lr()
 	
-	fig, axs = plt.subplots(1,1,figsize=(6,4))
-	print(f"Maximum eta= {max(lr_sch.hist)}, Minimum eta = {min(lr_sch.hist)}")
-	axs.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.1e'))
-	
-	axs.plot(range(len(lr_sch.hist)),lr_sch.hist,'o',markersize=1.5,c=colorplate.black,lw=2)
-	axs.set_yticks([1e-5,1e-1])
-	axs.set_xlabel('Update Step',font_dict)
-	axs.set_ylabel(r'$\eta_t$',font_dict)
-	fig.savefig('Figs/LR_schedule_2_log.jpg',bbox_inches='tight',dpi=300)
-	#---------------------------------------------
 
 	#Step 4: Initialisation of the network
 	#---------------------------------------------
@@ -969,6 +926,7 @@ def ExamCode():
 	#---------------------------------------------
 
 
+	quit()
 	# Step 5: Cost Function
 	J,l_cross = model.cost_func(X_test,Y_test,return_loss=True)
 	print(f"INFO: The loss = {J}")
@@ -984,7 +942,7 @@ def ExamCode():
 	if compute_grad: 
 
 		batch_size  = 1
-		trunc 		= 100
+		trunc 		= 20
 		X_test  	= X[:trunc,:1]
 		Y_test  	= Yenc[:,:1]
 		
@@ -1048,7 +1006,6 @@ def ExamCode():
 		df = pd.DataFrame(grad_error)
 		df.to_csv("Gradient_compute.csv",float_format="%.3e")
 
-	quit()
 	# Step 8 Train a very small case
 	model  = mlp(K,d)
 	hist  = model.train(X[:,:100],Yenc[:,:100],X_val,Y_val, lr_sch=None,
@@ -1059,515 +1016,19 @@ def ExamCode():
 		ax.set_xlabel('Update Steps',font_dict)
 	fig.savefig('Figs/validate_mini_batch.jpg',**fig_dict)
 
-def train_E3():
-	"""
-	Train For Exercise 3 
-	"""
-	print(f"*"*30)
-	print(f"\t Exercise 3")
-	print(f"*"*30)
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_OneBatch()
-	K = len(np.unique(Y_test)); d = X.shape[0]
-
-	lr_dict = {"n_s":500,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':100,'n_epochs':10}
-
-	lamda  = 0.01
-	filename = name_case(**lr_dict, **train_dict,lamda=lamda)
-	print(f"INFO: Start CASE: {filename}")
-	lr_sch  = lr_scheduler(**lr_dict)
-	model 	= mlp(K,d,m=50,lamda=lamda)
-
-	hist = model.train( X,Yenc,
-						X_val,Yenc_val,
-						lr_sch,**train_dict)
-	
-	acc = model.compute_acc(X_test,Y_test)
-	print(f"Acc ={acc*100}")
-	print("#"*30)
-	save_as_mat(model,hist,acc,"weights/" + filename)
-	print(f"W&B Saved!")
-	fig, axs = plot_hist(hist,10,100)
-	for ax in axs:
-		ax.set_xlabel('Update Step')
-	fig.savefig(f'Figs/Loss_{filename}.jpg',**fig_dict)
-
-
-def train_E4():
-	"""
-	Training For Longer Epoch with Larger cycle
-	"""
-	print(f"*"*30)
-	print(f"\t Exercise 4")
-	print(f"*"*30)
-	
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_OneBatch()
-
-	K = Yenc.shape[0]; d = X.shape[0]
-	# Step 3 Parameter Setting 
-	lr_dict = {"n_s":800,"eta_min":1e-5,"eta_max":1e-1} 
-	n_cycle = 3 
-	n_batch = 100
-	n_epoch = int(n_cycle * lr_dict['n_s'] * 2 / n_batch)
-
-	train_dict = {'n_batch':100,'n_epochs':n_epoch}
-	lamda  = 0.01
-	filename = name_case(**lr_dict, **train_dict,lamda=lamda)
-	print(f"INFO: Start CASE: {filename}")
-	lr_sch  = lr_scheduler(**lr_dict)
-	model 	= mlp(K,d,m=50,lamda=lamda)
-	
-	hist = model.train( X,Yenc,X_val,Yenc_val,
-						lr_sch,**train_dict)
-		
-
-	acc = model.compute_acc(X_test,Y_test)
-	print(f"Acc ={acc*100:.2f}%")
-	print("#"*30)
-	save_as_mat(model,hist,acc,"weights/" + filename)
-	print(f"W&B Saved!")
-	fig, axs = plot_hist(hist,10,100)
-	for ax in axs:
-		ax.set_xlabel('Update Step')
-	fig.savefig(f'Figs/Loss_{filename}.jpg',**fig_dict)
-	
-def post_E4():
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_OneBatch()
-	K = len(np.unique(Y_test)); d = X.shape[0]
-	lr_dict = {"n_s":800,"eta_min":1e-5,"eta_max":1e-1} 
-	n_cycle = 3 
-	n_batch = 100
-	n_epoch = int(n_cycle * lr_dict['n_s'] * 2 / n_batch)
-
-	train_dict = {'n_batch':100,'n_epochs':n_epoch}
-	lamda  = 0.01
-	filename = name_case(**lr_dict, **train_dict,lamda=lamda)
-	hist = {}
-	database = sio.loadmat('weights/' + filename + '.mat')
-	hist['train_cost'] = database['train_cost'].flatten()
-	hist['val_cost'] = database['val_cost'].flatten()
-	hist['train_loss'] = database['train_loss'].flatten()
-	hist['val_loss'] = database['val_loss'].flatten()
-	hist['train_acc'] = database['train_acc'].flatten()
-	hist['val_acc'] = database['val_acc'].flatten()
-
-	model =  mlp(K,d)
-	model.W1=database['W1'];model.W2=database['W2']
-	model.b1=database['b1'];model.b2=database['b2']
-	acc = model.compute_acc(X_test,Y_test)
-	print(f"Acc = {acc*100:.3f}")
-
-	fig, axs = plot_hist(hist,10,n_batch)
-	for ax in axs:
-		ax.set_xlabel('Update Step')
-	fig.savefig(f'Figs/Loss_{filename}.jpg',**fig_dict)
-
-
-def train_E5():
-	"""
-	Training For Coarse Search the optimal Lambda 
-	"""
-
-	print(f"*"*30)
-	print(f"\t Exercise 5")
-	print(f"*"*30)
-	
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.1)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch 	 = 100
-	n_cycle 	 = 2
-	l_min, l_max = -5,-1 
-	n_search     = 8
-	n_s 	     = 2 * (N_sample//n_batch)
-	n_epoch      = int(n_cycle * n_s * 2 / n_batch)
-	
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-
-	icount = 1
-	for l in (range(n_search)):
-		l = l_min + (l_max - l_min)*np.random.rand()
-		lamda = 10**l
-		case_name = name_case(**lr_dict,**train_dict,lamda=lamda)
-		
-		if not os.path.exists('weights/'+case_name+'.mat'):
-		
-			print("\n"+"#"*30)
-			print(f"({icount}/{n_search}) Start:\t{case_name}")
-			print(f"#"*30)
-			
-			model = mlp(K,d,m=50,lamda=lamda)
-			lr_sch  = lr_scheduler(**lr_dict)
-			hist = model.train( X,Yenc,X_val,Yenc_val,
-								lr_sch,**train_dict)
-			
-			acc = model.compute_acc(X_test,Y_test)
-			print(f"Acc ={acc*100:.2f}%")
-			
-			save_as_mat(model,hist,acc,"weights/" + case_name)
-			print(f"W&B Saved!")
-			
-			fig, axs = plot_hist(hist,0,1)
-			for ax in axs:
-				ax.set_xlabel('Epochs')
-			fig.savefig(f'Figs/Loss_{case_name}.jpg',**fig_dict)
-			icount +=1
-		
-		else:
-			print('The W&B Exist!')	
-		
-		print("#"*30)
-
-def post_E5():
-	print(f"*"*30)
-	print(f"\t Exercise 5")
-	print(f"*"*30)
-	
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.1)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch 		= 100
-	n_cycle 		= 2
-	l_min, l_max 	=-5,-1 
-	n_search  		= 8
-	n_s 	  		= 2 * np.floor(N_sample//n_batch).astype(np.int32)
-	n_epoch 		= int(n_cycle * n_s * 2 / n_batch)
-	
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-
-	key_words = f"W&B_{n_batch}BS_{n_epoch}Epoch_{n_s}NS"
-
-	list_path = os.listdir('weights/')
-	target_file = []
-	for filename in list_path:
-		if key_words in filename:
-			target_file.append(filename)
-	
-	lmda     = []
-	val_acc  =[]
-	test_acc = []
-	for filename in target_file:
-		loc = filename.find('Lambda')
-		lamda = float(filename[loc-9:loc])
-		print(f"Load Case:{filename}, Lamda = {lamda}")
-		dt 	= sio.loadmat('weights/'+filename)
-		model = mlp(K,d,lamda=lamda)
-		model.W1 = dt['W1']
-		model.W2 = dt['W2']
-		model.b1 = dt['b1']
-		model.b2 = dt['b2']
-
-		acc_val = model.compute_acc(X_val,Yenc_val)
-		acc_tst = model.compute_acc(X_test,Y_test)
-		lmda.append(lamda)
-		val_acc.append(acc_val)
-		test_acc.append(acc_tst)
-
-	lmda = np.array(lmda)
-	val_acc = np.array(val_acc)
-	test_acc = np.array(test_acc)
-
-	isort = np.argsort(val_acc)
-	lmda  = lmda[isort]
-	val_acc  = val_acc[isort]
-	test_acc  = test_acc[isort]
-	df = pd.DataFrame({
-						"Lambda"  :lmda.flatten(),
-						"val_acc" :val_acc.flatten(),
-						"test_acc":test_acc.flatten(),
-						
-						})
-
-	df.to_csv('Coarse_Search.csv',float_format='%.5e')
-
-
-def train_E6():
-	"""
-	Training For Coarse Search the optimal Lambda 
-	"""
-
-	print(f"*"*30)
-	print(f"\t Exercise 6")
-	print(f"*"*30)
-	
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.1)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch = 100
-	n_cycle = 2
-	l_min, l_max =-3,-2
-	n_search  = 8
-	n_s 	  = 2 * np.floor(N_sample/n_batch).astype(np.int32)
-	n_epoch	  = int(n_cycle * n_s * 2 / n_batch)
-
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-
-	icount = 1
-	for l in (range(n_search)):
-		l = l_min + (l_max - l_min)*np.random.rand()
-		lamda = 10**l
-		case_name = name_case(**lr_dict,**train_dict,lamda=lamda)
-		
-		if not os.path.exists('weights/'+case_name+'.mat'):
-		
-			print("\n"+"#"*30)
-			print(f"({icount}/{n_search}) Start:\t{case_name}")
-			print(f"#"*30)
-			
-			model = mlp(K,d,m=50,lamda=lamda)
-			lr_sch  = lr_scheduler(**lr_dict)
-			hist = model.train( X,Yenc,X_val,Yenc_val,
-								lr_sch,**train_dict)
-			
-			acc = model.compute_acc(X_test,Y_test)
-			print(f"Acc ={acc*100:.2f}%")
-			
-			save_as_mat(model,hist,acc,"weights/" + case_name)
-			print(f"W&B Saved!")
-			
-			fig, axs = plot_hist(hist,0,1)
-			for ax in axs:
-				ax.set_xlabel('Epochs')
-			fig.savefig(f'Figs/Loss_{case_name}.jpg',**fig_dict)
-
-			icount += 1
-		else:
-			print('The W&B Exist!')	
-		
-		print("#"*30)
-	return
-
-def post_E6():
-	print(f"*"*30)
-	print(f"\t Exercise 6 Post ")
-	print(f"*"*30)
-	
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.1)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch 		= 100
-	n_cycle 		= 2
-	l_min, l_max 	= 1e-3, 1e-2
-	n_search  		= 8
-	n_s 	  		= 2 * np.floor(N_sample/n_batch).astype(np.int32)
-	n_epoch 		= int(n_cycle * n_s * 2 / n_batch)
-	
-	def if_load(lamda,l_min,l_max):
-		if (lamda<=l_max) and (lamda>=l_min):
-			if_read = True
-		else:
-			if_read = False
-		return if_read
-
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-
-	key_words = f"W&B_{n_batch}BS_{n_epoch}Epoch_{n_s}NS"
-
-	list_path = os.listdir('weights/')
-	target_file = []
-	for filename in list_path:
-		if key_words in filename:
-			target_file.append(filename)
-	
-	lmda     = []
-	val_acc  =[]
-	test_acc = []
-	for filename in target_file:
-		dt 	= sio.loadmat('weights/'+filename)
-		lamda = dt['lamda'][0][0]
-		print(f'lamda={lamda}')
-		if if_load(lamda,l_min,l_max):
-			print(f"Load Case:{filename}")
-			model = mlp(K,d,lamda=lamda)
-			# Load State Dict 
-			model.W1 = dt['W1']
-			model.W2 = dt['W2']
-			model.b1 = dt['b1']
-			model.b2 = dt['b2']
-			# compute the accuary
-			acc_val = model.compute_acc(X_val,Yenc_val)
-			acc_tst = model.compute_acc(X_test,Y_test)
-			lmda.append(lamda)
-			val_acc.append(acc_val)
-			test_acc.append(acc_tst)
-
-	lmda = np.array(lmda)
-	val_acc = np.array(val_acc)
-	test_acc = np.array(test_acc)
-
-	isort = np.argsort(val_acc)
-	lmda  = lmda[isort]
-	val_acc  = val_acc[isort]
-	test_acc  = test_acc[isort]
-	df = pd.DataFrame({
-						"Lambda"  :lmda.flatten(),
-						"val_acc" :val_acc.flatten(),
-						"test_acc":test_acc.flatten(),
-						
-						})
-
-	df.to_csv('Finer_Search.csv',float_format='%.5e')
-
-
-def train_E7():
-	"""
-	Training For training the optimal Lambda 
-	"""
-
-	print(f"*"*30)
-	print(f"\t Exercise 7")
-	print(f"*"*30)
-
-	lamda = 4.286e-3
-
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.02)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch = 100
-	n_cycle = 3
-	# n_s 	= 2 * np.floor(N_sample/n_batch).astype(np.int32)
-	n_s		= 1000
-	n_epoch = int(n_cycle * n_s * 2 / n_batch)
-	
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-	
-	case_name = name_case(**lr_dict,**train_dict,lamda=lamda)
-		
-	if not os.path.exists('weights/'+case_name+'.mat'):
-	
-		print("\n"+"#"*30)
-		print(f"Start:\t{case_name}")
-		print(f"#"*30)
-		
-		model = mlp(K,d,m=50,lamda=lamda)
-		lr_sch  = lr_scheduler(**lr_dict)
-		hist = model.train( X,Yenc,X_val,Yenc_val,
-							lr_sch,**train_dict)
-		
-		acc = model.compute_acc(X_test,Y_test)
-		print(f"Acc ={acc*100:.2f}%")
-		
-		save_as_mat(model,hist,acc,"weights/" + case_name)
-		print(f"W&B Saved!")
-		
-		fig, axs = plot_hist(hist,0,1)
-		for ax in axs:
-			ax.set_xlabel('Update Step')
-		fig.savefig(f'Figs/Loss_{case_name}.jpg',**fig_dict)
-	else:
-		print("\n"+"#"*30)
-		print(f"Start:\t{case_name}")
-		print(f"#"*30)
-		
-		print('The W&B Exist!')	
-	
-	print("#"*30)
-
-	return
-
-def post_E7():
-	print(f"*"*30)
-	print(f"\t Exercise 7")
-	print(f"*"*30)
-	X, Yenc, X_val,Yenc_val,X_test,Y_test = dataLoader_FullBatch(split_ratio=0.02)
-	K, N_sample = Yenc.shape; d = X.shape[0]
-	
-	n_batch = 100
-	n_cycle = 3
-	n_s 	  = 2 * (N_sample//n_batch)
-	n_s 	  = 1000
-	n_epoch   = int(n_cycle * n_s * 2 / n_batch)
-	
-	print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
-
-	lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
-	train_dict = {'n_batch':n_batch,'n_epochs':n_epoch}
-	
-	lamda = 4.286e-3
-
-	case_name = name_case(**lr_dict,**train_dict,lamda=lamda)
-
-	dt = sio.loadmat('weights/'+ case_name + '.mat')
-	model = mlp(K,d,m=50)
-	model.W1 = dt['W1']
-	model.W2 = dt['W2']
-	model.b1 = dt['b1']
-	model.b2 = dt['b2']
-
-	acc_val = model.compute_acc(X_val,Yenc_val)
-	acc_tst = model.compute_acc(X_test,Y_test)
-	print(f"Acc TEST = {acc_tst}")
-
-
-	hist = {}
-	hist['train_cost'] = dt['train_cost'].flatten()
-	hist['val_cost'] = dt['val_cost'].flatten()
-	hist['train_loss'] = dt['train_loss'].flatten()
-	hist['val_loss'] = dt['val_loss'].flatten()
-	hist['train_acc'] = dt['train_acc'].flatten()
-	hist['val_acc'] = dt['val_acc'].flatten()
-	fig , axs  = plt.subplots(1,3,figsize=(24,6))
-
-	n_start = 0 
-	n_interval = 1
-	n_range = np.arange(0, n_epoch * N_sample,n_batch**2)
-	print(len(n_range))
-
-
-	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['train_cost'][n_start:-1:n_interval],fig,axs[0],color = colorplate.red,ls = '-')
-	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['val_cost'][n_start:-1:n_interval],fig,axs[0],color =colorplate.blue, ls = '-')
-	axs[0].set_ylabel('Cost',font_dict)
-
-	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['train_loss'][n_start:-1:n_interval],fig,axs[1],color = colorplate.red,ls = '-')
-	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['val_loss'][n_start:-1:n_interval],fig,axs[1],color =colorplate.blue, ls = '-')
-	axs[1].set_ylabel('Loss',font_dict)
-	
-	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['train_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.red, ls = '-')
-	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['val_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.blue, ls = '-')
-	axs[2].set_ylabel('Accuracy',font_dict)
-	
-	for ax in axs:
-		ax.legend(['Train',"Validation"],prop={'size':20})
-	
-	for ax in axs:
-		ax.set_xlabel('Update Step')
-	fig.savefig(f'Figs/Loss_{case_name}.jpg',**fig_dict)
-
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
 if __name__ == "__main__":
 
-	if (args.m == 1) or (args.m == 2):
+	if (args.m == 1):
 		ExamCode()
-	elif (args.m == 3):
-		train_E3()
-	elif (args.m == 4):
-		train_E4()
-		post_E4()
-	elif (args.m == 5):
-		# train_E5()
-		post_E5()
-	elif (args.m==6):
-		# train_E6()
-		post_E6()
-	elif (args.m==7):
-		train_E7()
-		post_E7()
+	# elif (args.m == 2):
+		# train_E2()
+	# elif (args.m == 3):
+		# train_E3()
+		# post_E4()
+	# elif (args.m == 4):
+		
 	else:
 		raise ValueError
