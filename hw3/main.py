@@ -337,14 +337,14 @@ class mlp:
 		# if self.num_layer > 1:
 
 		self.layerout[f'h0'] = x
-		for il in range(self.num_layer+1):
-			hkey = f'h{il+1}'
-			Wkey = f"W{il+1}"
-			bkey = f"b{il+1}"
-			if il == 0:
+		for il in range(1,self.num_layer+2):
+			hkey = f'h{il}'
+			Wkey = f"W{il}"
+			bkey = f"b{il}"
+			if il == 1:
 				self.layerout[hkey] = self.W_dict[Wkey] @ x + self.b_dict[bkey]
 			else:
-				hkey_ = f'h{il}'
+				hkey_=f'h{il-1}'
 				self.layerout[hkey] = self.W_dict[Wkey] @ ReLU(self.layerout[hkey_]) + self.b_dict[bkey]
 		
 
@@ -430,26 +430,37 @@ class mlp:
 		p = self.forward(x)
 		
 		# Gradient for output layer
-		g 	    = -(y - p).T
+		g = -(y - p).T
 
 		# Start Back Prop
-		for il in range(1,self.num_layer+2)[::-1]:
+		for il in reversed(range(1,self.num_layer+2)):
 			print(f"Compute Grad for Layer:{il}")
 			if il == self.num_layer+1:
 			
-				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il}']).T
-			
+				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T
 				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
+			
+			elif il != self.num_layer +1 and il>1:
+	
+				g = g @ self.W_dict[f'W{il+1}']
+				g[self.layerout[f'h{il}'].T <=0 ] = 0.0
+				
+
+				self.W_grad[f'W{il}'] = g.T @ ReLU(self.layerout[f"h{il-1}"].T)
+				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
+				
 			
 			else:
 				g = g @ self.W_dict[f'W{il+1}']
 
-				g[self.layerout[f'h{il}'].T <=0 ] = 0 
+				g[self.layerout[f'h{il}'].T <=0 ] = 0.0
 				
+			
 				self.W_grad[f'W{il}'] = g.T @ self.layerout[f"h{il-1}"].T
-				
 				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
-		
+			
+
+			print(self.W_grad[f'W{il}'].shape, self.b_grad[f'b{il}'].shape)
 
 	def backward(self,x,y,eta_,batch_size):
 		"""Back Prop for Update the W&B"""
@@ -710,7 +721,11 @@ def ComputeGradsNum(X, Y, model, h=1e-5):
 			c2 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
 			grad_b[f"b{il}"][i] = (c2-c1) / (h)
 
-		print(f"INFO: Compute {il} Layer")
+		keyW = f"W{il}"
+		keyb = f"b{il}"
+		print(f"INFO: Compute {il} Layer, " + \
+			 f"gradient Shape = {grad_W[keyW].shape}, {grad_b[keyb].shape}"
+			 )
 	
 	return grad_W, grad_b
 
@@ -889,7 +904,7 @@ def ExamCode():
 	#Step 4: Initialisation of the network
 	#---------------------------------------------
 	#Use the class for model implementation 
-	model = mlp(K,d,h_size=[50,10,10,10],lamda=0.0)
+	model = mlp(K,d,h_size=[50],lamda=0.0)
 	
 	# Step 4: Test for forward prop
 	batch_size  = 1
@@ -931,15 +946,15 @@ def ExamCode():
 
 		grad_error = {}
 
-
+		print("\nImplict Method")
 		grad_W1_n, grad_b1_n = ComputeGradsNum(X_trunc,
 											Y_trunc,
 											model,
 											h=h)
 		
 
-		print("\nImplict Method")
-		for il in range(1,model.num_layer+1):
+		
+		for il in range(1,model.num_layer+2):
 			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
 			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
 			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
@@ -948,15 +963,15 @@ def ExamCode():
 			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
 
 		
-
+		print("\nCentral Method")
 		grad_W1_n, grad_b1_n = ComputeGradsNumSlow(X_trunc,
 											Y_trunc,
 											model,
 											h=h)
 		
 
-		print("\nCentral Method")
-		for il in range(1,model.num_layer+1):
+		
+		for il in range(1,model.num_layer+2):
 			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
 			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
 			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
