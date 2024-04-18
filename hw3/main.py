@@ -39,7 +39,7 @@ fig_dict = {'bbox_inches':'tight','dpi':300}
 # Setup the random seed
 np.random.seed(400)
 # Set the global variables
-global K, d, label
+# global K, d, label
 
 # For visualisation 
 class colorplate:
@@ -309,17 +309,18 @@ def dataLoader_FullBatch(split_ratio=0.1):
 #----------------------------------------------
 
 class mlp:
-	def __init__(self,K,d,
+	def __init__(self,k_,d_,
 			  		h_size=[50],
 					lamda=0,
 					ifact= True,
 					ifBN = True
 				):
-		self.K  = K 
-		self.d  = d 
-		self.m  = h_size 
-		self.init_WB(K,d,h_size)
-		self.lamda = lamda
+		self.K  		= k_ 
+		self.d  		= d_ 
+		self.m  		= h_size 
+		self.num_layer  = len(h_size)
+		self.lamda 		= lamda
+		self.init_WB()
 		print(f"INFO: Model initialised: LAMBDA = {self.lamda:3e} K={self.K}, d={self.d}, m={self.m}")
 		
 
@@ -332,17 +333,22 @@ class mlp:
 		"""
 		Forward Propagation 
 		"""
-
-
-		hidden_output= self.W1 @ x +self.b1 # ReLU activation
-
-		scores = self.W2 @ ReLU(hidden_output) +self.b2
-
 		
-		if return_hidden:
-			return softmax(scores),hidden_output
-		else:
-			return softmax(scores) 
+		# if self.num_layer > 1:
+
+		self.layerout[f'h0'] = x
+		for il in range(self.num_layer+1):
+			hkey = f'h{il+1}'
+			Wkey = f"W{il+1}"
+			bkey = f"b{il+1}"
+			if il == 0:
+				self.layerout[hkey] = self.W_dict[Wkey] @ x + self.b_dict[bkey]
+			else:
+				hkey_ = f'h{il}'
+				self.layerout[hkey] = self.W_dict[Wkey] @ ReLU(self.layerout[hkey_]) + self.b_dict[bkey]
+		
+
+		return softmax(self.layerout[hkey])  
 
 	def cost_func(self,X,Y,return_loss = False):
 		"""
@@ -363,8 +369,12 @@ class mlp:
 		# Clip the value to avoid ZERO in log
 		P = np.clip(P,1e-16,1-1e-16)
 		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
+		
 		# Part 2: Compute the regularisation 
-		reg = self.lamda * (np.sum(self.W1**2) + np.sum(self.W2**2)  )
+		reg = 0 
+		for il in range(self.num_layer+1):
+			reg += np.sum(self.W_dict[f"W{il+1}"]**2)
+		reg *= self.lamda
 		# Assemble the components
 		J = l_cross + reg
 
@@ -414,46 +424,41 @@ class mlp:
 
 			x	: [d,n] input 
 			y	: [1,n] Ground Truth 
-		
-		Returns:
-
-			grad_W2 : [K,m]
-			grad_b2	: [K,1]
-			
-			grad_W1 : [m,d]
-			grad_b2 : [d,1]
-
 		"""
 
 		# compute the Prediction 
-		p,hidden_output = self.forward(x,return_hidden=True)
+		p = self.forward(x)
 		
 		# Gradient for output layer
 		g 	    = -(y - p).T
-		gW2 	= g.T @ ReLU(hidden_output).T 
-		gb2 	= np.sum(g,axis=0,keepdims=True).T
+
+		# Start Back Prop
+		for il in range(1,self.num_layer+2)[::-1]:
+			print(f"Compute Grad for Layer:{il}")
+			if il == self.num_layer+1:
+			
+				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il}']).T
+			
+				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
+			
+			else:
+				g = g @ self.W_dict[f'W{il+1}']
+
+				g[self.layerout[f'h{il}'].T <=0 ] = 0 
+				
+				self.W_grad[f'W{il}'] = g.T @ self.layerout[f"h{il-1}"].T
+				
+				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
 		
-		# Gradient for hidden layer 
-		g=g @ self.W2
-		g[hidden_output.T <=0] = 0
-		gW1  = g.T @ x.T 
-		gb1  = np.sum(g, axis=0,keepdims=True).T
-
-		del x,y,p,hidden_output
-
-		return gW2, gb2, gW1, gb1
 
 	def backward(self,x,y,eta_,batch_size):
 		"""Back Prop for Update the W&B"""
-		grad_W2, grad_b2, grad_W1, grad_b1 = self.computeGradient(x,y)
+
+		for il in range(1,self.num_layer+2):
+			self.W_dict[f"W{il}"] -= eta_ * ((1/batch_size)*(self.W_grad[f'W{il}']) + 2*self.lamda*self.W_dict[f'W{il}'])
+			self.b_dict[f"b{il}"] -= eta_ * ((1/batch_size)*(self.b_grad[f'b{il}']))
+
 		
-		self.W1 -= eta_*( (1/batch_size)*(grad_W1) + 2*self.lamda*self.W1 )	
-		self.b1 -= eta_*( (1/batch_size)*(grad_b1)						 )
-
-		self.W2 -= eta_*( (1/batch_size)*(grad_W2) + 2*self.lamda*self.W2 )
-		self.b2 -= eta_*( (1/batch_size)*(grad_b2)						 )
-
-		del grad_W2, grad_b2, grad_W1, grad_b1
 	
 	def train(self,X,Y,X_val,Y_val,lr_sch,n_epochs,n_batch,fix_eta = 1e-3):
 		
@@ -529,7 +534,7 @@ class mlp:
 	
 
 
-	def init_WB(self,K:int,d:int,m:list):
+	def init_WB(self):
 		"""
 		Initialising The W&B, we use normal distribution as an initialisation strategy 
 		Args:
@@ -545,14 +550,16 @@ class mlp:
 		mu = 0
 		self.W_dict= {}
 		self.b_dict= {}
-		
+		m = self.m
+		K = self.K
+		d = self.d
 		num_hidden = len(m)
 		
 		for i,h_size in enumerate(m):
 			keyW = f"W{i+1}"
 			keyb = f"b{i+1}"
 			if i==0:
-				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,d)).astype(np.float64)
+				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,self.d)).astype(np.float64)
 				self.b_dict[keyb] = np.zeros(shape=(h_size,1)).astype(np.float64)
 			else:	
 				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,m[i-1])).astype(np.float64)
@@ -564,8 +571,8 @@ class mlp:
 		keyW = f"W{num_hidden+1}"
 		keyb = f"b{num_hidden+1}"
 		lend = m[-1]
-		self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(K,lend)).astype(np.float64)
-		self.b_dict[keyb] = np.zeros(shape=(K,1)).astype(np.float64)
+		self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(self.K,lend)).astype(np.float64)
+		self.b_dict[keyb] = np.zeros(shape=(self.K,1)).astype(np.float64)
 		
 		print(f"INFO: Last W&B init: {keyW}={self.W_dict[keyW].shape}, {keyb}={self.b_dict[keyb].shape}")
 	
@@ -637,7 +644,7 @@ def ReLU(x):
 	return x
 
 
-def EvaluateClassifier(x,W1,b1,W2,b2,return_hidden=False):
+def EvaluateClassifier(x,W_dict,b_dict,num_layer):
 	"""
 	Forward Prop of the model 
 	Args:
@@ -647,146 +654,122 @@ def EvaluateClassifier(x,W1,b1,W2,b2,return_hidden=False):
 	Returns:
 		P: [K,n] The outputs as one-hot classification
 	"""
-	hidden_output= W1 @ x +b1# ReLU activation
+	layerout = {}
+	layerout[f'h0'] = x
+	for il in range(num_layer+1):
+		hkey = f'h{il+1}'
+		Wkey = f"W{il+1}"
+		bkey = f"b{il+1}"
+		if il == 0:
+			layerout[hkey] = W_dict[Wkey] @ x + b_dict[bkey]
+		else:
+			hkey_ = f'h{il}'
+			layerout[hkey] = W_dict[Wkey] @ ReLU(layerout[hkey_]) + b_dict[bkey]
+		
 
-	scores = W2 @ ReLU(hidden_output) + b2
-
-	if return_hidden:
-		return softmax(scores), hidden_output 
-	else:
-		return softmax(scores) 
-
-
-
-def computeGrad_Explict(x,y,W1,b1,W2,b2):
-		# compute the Prediction 
-	p,hidden_output = EvaluateClassifier(x,
-								W1,b1,W2,b2,
-								return_hidden=True)
+	return softmax(layerout[hkey]), layerout
 	
-	# Gradient for output layer
-	g 	    = -(y - p).T
-	gW2 	= g.T @ ReLU(hidden_output).T 
-	gb2 	= np.sum(g,axis=0,keepdims=True).reshape(-1,1)
-
-	# Gradient for hidden layer 
-	g	 	=	g @ W2
-	g[hidden_output.T<=0]=0
-	gW1  	= g.T @ x.T 
-	gb1  	= np.sum(g, axis=0,keepdims=True).reshape(-1,1)
-
-	return gW2, gb2, gW1, gb1
 
 
-def ComputeGradsNum(X, Y, W1, b1, W2, b2, h):
+
+
+def ComputeGradsNum(X, Y, model, h=1e-5):
 	""" 
 	Converted from matlab code 
 	
 	"""
+	from copy import deepcopy
+	grad_W = {}
+	grad_b = {}
+	c1 = model.cost_func(X,Y)
 
-	grad_W1 = np.zeros_like(W1);
-	grad_b1 = np.zeros_like(b1);
-	grad_W2 = np.zeros_like(W2);
-	grad_b2 = np.zeros_like(b2);
+	
+	for il in range(1,model.num_layer + 2):
 
-	c1 = ComputeCost(X,Y,W1,b1,W2,b2,0)
+		grad_W[f'W{il}'] = np.zeros_like(model.W_dict[f'W{il}']).astype(np.float64)
+		grad_b[f'b{il}'] = np.zeros_like(model.b_dict[f'b{il}']).astype(np.float64)
+		
+		xW, yW = grad_W[f"W{il}"].shape
+		xb     = len(grad_b[f"b{il}"])
+
+		for i in range(xW):
+			for j in range(yW):
+				W_dict = deepcopy(model.W_dict)
+				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
+				W_try[i,j] += h
+				W_dict[f'W{il}'] = W_try
+				c2 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
+				grad_W[f"W{il}"][i,j] = (c2-c1) / (h)
+
+		
+		for i in range(xb):
+			b_dict = deepcopy(model.b_dict)
+			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
+			b_try[i] += h
+			b_dict[f'b{il}'] = b_try
+			c2 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
+			grad_b[f"b{il}"][i] = (c2-c1) / (h)
+
+		print(f"INFO: Compute {il} Layer")
+	
+	return grad_W, grad_b
+
+def ComputeGradsNumSlow(X, Y, model, h=1e-5):
+	""" 
+	Converted from matlab code 
+	
+	"""
+	from copy import deepcopy
+	grad_W = {}
+	grad_b = {}
+	c1 = model.cost_func(X,Y)
+
+	
+	for il in range(1,model.num_layer + 2):
+
+		grad_W[f'W{il}'] = np.zeros_like(model.W_dict[f'W{il}']).astype(np.float64)
+		grad_b[f'b{il}'] = np.zeros_like(model.b_dict[f'b{il}']).astype(np.float64)
+		
+		xW, yW = grad_W[f"W{il}"].shape
+		xb     = len(grad_b[f"b{il}"])
+
+		for i in range(xW):
+			for j in range(yW):
+				W_dict = deepcopy(model.W_dict)
+				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
+				W_try[i,j] -= h
+				W_dict[f'W{il}'] = W_try
+				c1 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
+				
+				W_dict = deepcopy(model.W_dict)
+				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
+				W_try[i,j] += h
+				W_dict[f'W{il}'] = W_try
+				c2 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
+				
+				grad_W[f"W{il}"][i,j] = (c2-c1) / (2*h)
+
+		
+		for i in range(xb):
+
+			b_dict = deepcopy(model.b_dict)
+			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
+			b_try[i] -= h
+			b_dict[f'b{il}'] = b_try
+			c1 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
 			
-	for i in range(W2.shape[0]):
-		for j in range(W2.shape[1]):
-			W_try = np.array(W2)
-			W_try[i,j] += h
-			c2 = ComputeCost(X,Y,W1,b1,W_try,b2,0)
-			grad_W2[i,j] = (c2-c1) /h
-	print("INFO: Compute W2 Grad")
+			b_dict = deepcopy(model.b_dict)
+			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
+			b_try[i] += h
+			b_dict[f'b{il}'] = b_try
+			c2 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
+			
+			
+			grad_b[f"b{il}"][i] = (c2-c1) / (2*h)
 
+		print(f"INFO: Compute {il} Layer")
 	
-	for i in range(len(b2)):
-		b_try = np.array(b2)
-		b_try[i] += h
-		c2 = ComputeCost(X,Y,W1,b1,W2,b_try,0)
-		grad_b2[i] = (c2-c1) / (h)
-	print("INFO: Compute b2 Grad")
-
-
-	
-	for i in range(W1.shape[0]):
-		for j in range(W1.shape[1]):
-			W_try = np.array(W1)
-			W_try[i,j] += h
-			c2 = ComputeCost(X,Y,W_try,b1,W2,b2,0)
-			grad_W1[i,j] = (c2-c1) / (h)
-	print("INFO: Compute W1 Grad")
-
-		
-	for i in range(len(b1)):
-		b_try = np.array(b1)
-		b_try[i] += h
-		c2 = ComputeCost(X,Y,W1,b_try,W2,b2,0)
-		grad_b1[i] = (c2-c1) / (h)
-	print("INFO: Compute b1 Grad")
-	
-
-	
-	return [grad_W1, grad_b1, grad_W2, grad_b2]
-
-def ComputeGradsNumSlow(X, Y,W1, b1, W2, b2, h):
-	""" 
-	Converted from matlab code 
-	
-	"""
-
-	grad_W1 = np.zeros_like(W1);
-	grad_b1 = np.zeros_like(b1);
-	grad_W2 = np.zeros_like(W2);
-	grad_b2 = np.zeros_like(b2);
-
-	for i in range(W2.shape[0]):
-		for j in range(W2.shape[1]):
-			W_try = np.array(W2)
-			W_try[i,j] -= h
-			c1 = ComputeCost(X,Y,W1,b1,W_try,b2,0)
-			W_try = np.array(W2)
-			W_try[i,j] += h
-			c2 = ComputeCost(X,Y,W1,b1,W_try,b2,0)
-			grad_W2[i,j] = (c2-c1) / (2*h)
-	print("INFO: Compute W2 Grad")
-
-	
-	for i in range(len(b2)):
-		b_try = np.array(b2)
-		b_try[i] -= h
-		c1 = ComputeCost(X,Y,W1,b1,W2,b_try,0)
-		b_try = np.array(b2)
-		b_try[i] += h
-		c2 = ComputeCost(X,Y,W1,b1,W2,b_try,0)
-		grad_b2[i] = (c2-c1) / (2*h)
-	print("INFO: Compute b2 Grad")
-
-
-	
-	for i in range(W1.shape[0]):
-		for j in range(W1.shape[1]):
-			W_try = np.array(W1)
-			W_try[i,j] -= h
-			c1 = ComputeCost(X,Y,W_try,b1,W2,b2,0)
-			W_try = np.array(W1)
-			W_try[i,j] += h
-			c2 = ComputeCost(X,Y,W_try,b1,W2,b2,0)
-			grad_W1[i,j] = (c2-c1) / (2*h)
-	print("INFO: Compute W1 Grad")
-
-		
-	for i in range(len(b1)):
-		b_try = np.array(b1)
-		b_try[i] -= h
-		c1 = ComputeCost(X,Y,W1,b_try,W2,b2,0)
-		b_try = np.array(b1)
-		b_try[i] += h
-		c2 = ComputeCost(X,Y,W1,b_try,W2,b2,0)
-		grad_b1[i] = (c2-c1) / (2*h)
-	print("INFO: Compute b1 Grad")
-	
-	return [grad_W1, grad_b1, grad_W2, grad_b2]
+	return grad_W, grad_b
 #----------------------
 #	Back Prop  
 #-----------------------
@@ -808,7 +791,7 @@ def Prop_Error(ga,gn,eps):
 
 
 
-def ComputeCost(X,Y,W1,b1,W2,b2,lamda,return_loss = False):
+def ComputeCost(X,Y,W_dict,b_dict,num_layer):
 	"""
 	Compute the cost function: c = loss + regularisation 
 
@@ -825,47 +808,15 @@ def ComputeCost(X,Y,W1,b1,W2,b2,lamda,return_loss = False):
 	
 	# Part 1: compute the loss:
 	## 1 Compute prediction:
-	P = EvaluateClassifier(X,W1,b1,W2,b2)
+	P, _ = EvaluateClassifier(X,W_dict,b_dict,num_layer)
 	## Cross-entropy loss
 	# Clip the value to avoid ZERO in log
 	P 		= np.clip(P,1e-16,1-1e-16)
 	l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
 	# Part 2: Compute the regularisation 
-	reg = lamda * (np.sum(W1**2) + np.sum(W2**2))
-	# Assemble the components
-	J = l_cross + reg
-	if return_loss:
-		return J, l_cross
-	else: 
-		return J 
-	
-def ComputeAccuracy(X,Y,P):
-	"""
-	Compute the accuracy of the classification 
-	
-	Args:
 
-		X	: [d,n] input 
-		Y	: [1,n] Ground Truth 
-		P	: [K,n] Prediction 
+	return l_cross
 
-	Returns: 
-
-		acc : (float) a scalar value containing accuracy 
-	"""
-
-	
-	#Compute the maximum prob 
-	# [K,n] -> K[1,n]
-	P = np.argmax(P,axis=0)
-	
-	# Compute how many true-positive samples
-	true_pos = np.sum(P == Y)
-	# Percentage on total 
-	acc =  true_pos / Y.shape[-1]
-
-	del P, X, Y
-	return acc
 #----------------------------------------------
 
 
@@ -938,111 +889,82 @@ def ExamCode():
 	#Step 4: Initialisation of the network
 	#---------------------------------------------
 	#Use the class for model implementation 
-	model = mlp(K,d,h_size=[50,10,10],lamda=0.0)
+	model = mlp(K,d,h_size=[50,10,10,10],lamda=0.0)
 	
-
-	quit()
 	# Step 4: Test for forward prop
 	batch_size  = 1
-	X_test  	= X[:,:batch_size]
-	Y_test  	= Yenc[:,:batch_size]
+	X_batch  	= X[:,:batch_size]
+	Y_batch  	= Yenc[:,:batch_size]
 	
-	# P 		= EvaluateClassifier(X_test,W,b)
-	P 		= model.forward(X_test)
+	# P 		= EvaluateClassifier(X_batch,W,b)
+	P 		= model.forward(X_batch)
 	print(f"INFO: Test Pred={P.shape}")
 	#---------------------------------------------
 
 
-	quit()
+
 	# Step 5: Cost Function
-	J,l_cross = model.cost_func(X_test,Y_test,return_loss=True)
+	J,l_cross = model.cost_func(X_batch,Y_batch,return_loss=True)
 	print(f"INFO: The loss = {J}")
 
 
 	# Step 6: Examine the acc func:
-	acc = model.compute_acc(X,Y)
+	acc = model.compute_acc(X,Yenc)
 	print(f"INFO:Accuracy Score={acc*100}%") 
 
-
+	model.computeGradient(X_batch,Y_batch)
+	
 	# Step 7 Compute the Gradient and compare to analytical solution 
 	compute_grad = True
 	if compute_grad: 
 
 		batch_size  = 1
 		trunc 		= 20
-		X_test  	= X[:trunc,:1]
-		Y_test  	= Yenc[:,:1]
-		
-		h 			= 1e-5 # Given in assignment
-		
-		grad_W2, grad_b2, grad_W1, grad_b1  = computeGrad_Explict(X_test,Y_test,
-																model.W1[:,:trunc],
-																model.b1,
-																model.W2[:,:],
-																model.b2,)
+		X_trunc  	= X[:trunc,:1]
+		Y_trunc  	= Yenc[:,:1]
 
-		print(f"Compute Gradient: W2:{grad_W2.shape},W1:{grad_W1.shape},b1:{grad_b1.shape},b2:{grad_b2.shape}")
+		model 		= mlp(k_=K,	d_=trunc, h_size=[50,10,10])	
+		h 			= 1e-4 # Given in assignment
+		
+		model.computeGradient(X_trunc,Y_trunc)
+
 
 		grad_error = {}
-		grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNumSlow(X_test,
-																		Y_test,
-																		model.W1[:,:trunc],
-																		model.b1,
-																		model.W2[:,:],
-																		model.b2,
-																		h=h)
-		print("Central Method")
-		ew = Prop_Error(grad_W1,grad_W1_n,h)
-		eb = Prop_Error(grad_b1,grad_b1_n,h)
-		print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
-		print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
-		grad_error["central_w1"] = ew.mean().reshape(-1,)
-		grad_error["central_b1"] = eb.mean().reshape(-1,)
 
-		ew = Prop_Error(grad_W2,grad_W2_n,h)
-		eb = Prop_Error(grad_b2,grad_b2_n,h)
-		print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
-		print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
-		grad_error["central_w2"] = ew.mean().reshape(-1,)
-		grad_error["central_b2"] = eb.mean().reshape(-1,)
 
-		grad_W1_n, grad_b1_n,grad_W2_n, grad_b2_n = ComputeGradsNum(X_test,
-																	Y_test,
-																	model.W1[:,:trunc],
-																	model.b1,
-																	model.W2,
-																	model.b2,
-																	h=h)
+		grad_W1_n, grad_b1_n = ComputeGradsNum(X_trunc,
+											Y_trunc,
+											model,
+											h=h)
 		
 
-		print("Implict Method")
-		ew = Prop_Error(grad_W1,grad_W1_n,h)
-		eb = Prop_Error(grad_b1,grad_b1_n,h)
-		print(f"Comparison: Prop Error for W1:{ew.mean():.3e}")
-		print(f"Comparison: Prop Error for B1:{eb.mean():.3e}")
-		grad_error["forward_b1"] = eb.mean().reshape(-1,)
-		grad_error["forward_w1"] = ew.mean().reshape(-1,)
+		print("\nImplict Method")
+		for il in range(1,model.num_layer+1):
+			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
+			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
+			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
+			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
+			grad_error[f"forward_b{il}"] = eb.mean().reshape(-1,)
+			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
 
-		ew = Prop_Error(grad_W2,grad_W2_n,h)
-		eb = Prop_Error(grad_b2,grad_b2_n,h)
-		print(f"Comparison: Prop Error for W2:{ew.mean():.3e}")
-		print(f"Comparison: Prop Error for B2:{eb.mean():.3e}")
-		grad_error["forward_w2"] = ew.mean().reshape(-1,)
-		grad_error["forward_b2"] = eb.mean().reshape(-1,)
+		
 
-		df = pd.DataFrame(grad_error)
-		df.to_csv("Gradient_compute.csv",float_format="%.3e")
+		grad_W1_n, grad_b1_n = ComputeGradsNumSlow(X_trunc,
+											Y_trunc,
+											model,
+											h=h)
+		
 
-	# Step 8 Train a very small case
-	model  = mlp(K,d)
-	hist  = model.train(X[:,:100],Yenc[:,:100],X_val,Y_val, lr_sch=None,
-					 n_epochs=200,n_batch=10)
+		print("\nCentral Method")
+		for il in range(1,model.num_layer+1):
+			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
+			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
+			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
+			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
+			grad_error[f"forward_b{il}"] = eb.mean().reshape(-1,)
+			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
 
-	fig, axs = plot_hist(hist,0,1)
-	for ax in axs:
-		ax.set_xlabel('Update Steps',font_dict)
-	fig.savefig('Figs/validate_mini_batch.jpg',**fig_dict)
-
+		# df.to_csv("Gradient_compute.csv",float_format="%.3e")
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
