@@ -23,7 +23,7 @@ import argparse
 from matplotlib import ticker as ticker
 # Parse Arguments 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m',default=4,type=int,help='Choose which exercise to do 1,2,3,4,5')
+parser.add_argument('-m',default=1,type=int,help='Choose which exercise to do 1,2,3,4,5')
 parser.add_argument('-epoch',default=200,type=int,help='Number of epoch')
 parser.add_argument('-batch',default=10,type=int,help='Batch size')
 parser.add_argument('-lr',default=1e-3,type=float,help='learning rate')
@@ -338,16 +338,16 @@ class mlp:
 
 		self.layerout[f'h0'] = x
 		for il in range(1,self.num_layer+2):
-			hkey = f'h{il}'
-			Wkey = f"W{il}"
-			bkey = f"b{il}"
-			if il == 1:
-				self.layerout[hkey] = self.W_dict[Wkey] @ x + self.b_dict[bkey]
+			hkey  = f'h{il}'
+			hkey_ = f'h{il-1}'
+			Wkey  = f"W{il}"
+			bkey  = f"b{il}"
+			if il ==1:
+				self.layerout[hkey] = self.W_dict[Wkey] @ (self.layerout[hkey_]) + self.b_dict[bkey]
 			else:
-				hkey_=f'h{il-1}'
 				self.layerout[hkey] = self.W_dict[Wkey] @ ReLU(self.layerout[hkey_]) + self.b_dict[bkey]
 		
-
+		
 		return softmax(self.layerout[hkey])  
 
 	def cost_func(self,X,Y,return_loss = False):
@@ -368,7 +368,7 @@ class mlp:
 		## Cross-entropy loss
 		# Clip the value to avoid ZERO in log
 		P = np.clip(P,1e-16,1-1e-16)
-		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
+		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0)).astype(np.float64)
 		
 		# Part 2: Compute the regularisation 
 		reg = 0 
@@ -429,38 +429,23 @@ class mlp:
 		# compute the Prediction 
 		p = self.forward(x)
 		
-		# Gradient for output layer
-		g = -(y - p).T
-
 		# Start Back Prop
 		for il in reversed(range(1,self.num_layer+2)):
 			print(f"Compute Grad for Layer:{il}")
-			if il == self.num_layer+1:
-			
-				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T
-				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
-			
-			elif il != self.num_layer +1 and il>1:
-	
-				g = g @ self.W_dict[f'W{il+1}']
-				g[self.layerout[f'h{il}'].T <=0 ] = 0.0
-				
 
-				self.W_grad[f'W{il}'] = g.T @ ReLU(self.layerout[f"h{il-1}"].T)
-				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
-				
-			
+			if il == self.num_layer+1:
+				g = -(y - p).T
+				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T.astype(np.float64)
+				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T.astype(np.float64)
+
+			# elif il >1 and il<self.num_layer+1:
 			else:
 				g = g @ self.W_dict[f'W{il+1}']
+				g[self.layerout[f'h{il}'].T <=0.0 ] = 0.0
 
-				g[self.layerout[f'h{il}'].T <=0 ] = 0.0
-				
+				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T.astype(np.float64)
+				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T.astype(np.float64)
 			
-				self.W_grad[f'W{il}'] = g.T @ self.layerout[f"h{il-1}"].T
-				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T
-			
-
-			print(self.W_grad[f'W{il}'].shape, self.b_grad[f'b{il}'].shape)
 
 	def backward(self,x,y,eta_,batch_size):
 		"""Back Prop for Update the W&B"""
@@ -803,6 +788,7 @@ def Prop_Error(ga,gn,eps):
 	summ  = np.abs(ga)+np.abs(gn)
 
 	return np.abs(ga-gn)/np.maximum(eps_m,summ)
+	# return np.abs(ga-gn)/np.maximum(ga+np.finfo(float).eps,gn+np.finfo(float).eps)
 
 
 
@@ -934,19 +920,19 @@ def ExamCode():
 	if compute_grad: 
 
 		batch_size  = 1
-		trunc 		= 20
+		trunc 		= 10
 		X_trunc  	= X[:trunc,:1]
 		Y_trunc  	= Yenc[:,:1]
 
-		model 		= mlp(k_=K,	d_=trunc, h_size=[50,10,10])	
-		h 			= 1e-4 # Given in assignment
+		model 		= mlp(k_=K,	d_=trunc, h_size=[50,10])	
+		h 			= 1e-5 # Given in assignment
 		
 		model.computeGradient(X_trunc,Y_trunc)
 
 
 		grad_error = {}
 
-		print("\nImplict Method")
+		print("\n----Implict Method----")
 		grad_W1_n, grad_b1_n = ComputeGradsNum(X_trunc,
 											Y_trunc,
 											model,
@@ -957,13 +943,13 @@ def ExamCode():
 		for il in range(1,model.num_layer+2):
 			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
 			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
-			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
+			print(f"\nComparison: Prop Error for W{il}:{ew.mean():.3e}")
 			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
 			grad_error[f"forward_b{il}"] = eb.mean().reshape(-1,)
 			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
 
 		
-		print("\nCentral Method")
+		print("\n ----Central Method----")
 		grad_W1_n, grad_b1_n = ComputeGradsNumSlow(X_trunc,
 											Y_trunc,
 											model,
@@ -974,12 +960,13 @@ def ExamCode():
 		for il in range(1,model.num_layer+2):
 			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
 			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
-			print(f"Comparison: Prop Error for W{il}:{ew.mean():.3e}")
+			print(f"\nComparison: Prop Error for W{il}:{ew.mean():.3e}")
 			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
-			grad_error[f"forward_b{il}"] = eb.mean().reshape(-1,)
-			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
+			grad_error[f"central_b{il}"] = eb.mean().reshape(-1,)
+			grad_error[f"central_w{il}"] = ew.mean().reshape(-1,)
 
-		# df.to_csv("Gradient_compute.csv",float_format="%.3e")
+		df = pd.DataFrame(grad_error)
+		df.to_csv("Gradient_compute.csv",float_format="%.3e")
 ##########################################
 ## Run the programme DOWN Here:
 ##########################################
