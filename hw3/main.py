@@ -1,7 +1,7 @@
 """
-Assignment 2
+Assignment 3
 
-MLP with BatchNorm 
+K-Layer Network with BatchNormalisation
 
 @yuningw
 Apr 16h, 2024 
@@ -16,18 +16,18 @@ import numpy.linalg as LA
 import matplotlib.pyplot as plt
 import scipy.io as sio
 import pandas as pd 
-from tqdm import tqdm 
 import time
 import pathlib
 import argparse
 from matplotlib import ticker as ticker
+# Dictionary for layer. cache, etc
+from collections import OrderedDict
+import unittest
+
 # Parse Arguments 
 parser = argparse.ArgumentParser()
+
 parser.add_argument('-m',default=1,type=int,help='Choose which exercise to do 1,2,3,4,5')
-parser.add_argument('-epoch',default=200,type=int,help='Number of epoch')
-parser.add_argument('-batch',default=10,type=int,help='Batch size')
-parser.add_argument('-lr',default=1e-3,type=float,help='learning rate')
-parser.add_argument('-lamda',default=0,type=float,help='l2 regularisation')
 args = parser.parse_args()
 
 # Mkdir 
@@ -38,10 +38,8 @@ font_dict = {'size':20,'weight':'bold'}
 fig_dict = {'bbox_inches':'tight','dpi':300}
 # Setup the random seed
 np.random.seed(400)
-# Set the global variables
-# global K, d, label
 
-# For visualisation 
+# SetUp For visualisation 
 class colorplate:
     red = "#D23918" # luoshenzhu
     blue = "#2E59A7" # qunqing
@@ -49,7 +47,6 @@ class colorplate:
     cyan = "#5DA39D" # er lv
     black = "#151D29" # lanjian
     gray    = "#DFE0D9" # ermuyu 
-
 plt.rc("font",family = "serif")
 plt.rc("font",size = 22)
 plt.rc("axes",labelsize = 16, linewidth = 2)
@@ -57,528 +54,550 @@ plt.rc("legend",fontsize= 12, handletextpad = 0.3)
 plt.rc("xtick",labelsize = 18)
 plt.rc("ytick",labelsize = 18)
 
-# Set up the parameter for training 
-class GDparams:
-	eta 	= args.lr		# [0.1,1e-3,1e-3,1e-3]
-	n_batch = args.batch		# [100,100,100,100]
-	n_epochs= args.epoch 		# [40,40,40,40]
-	lamda 	= args.lamda 		# [0,0,0.1,1]
-
-#-----------------------------------------------
-
 
 ##########################################
-## Function from the assignments
+## Dataloader
 ##########################################
+def normalization(X):
 
-# I rename the function 
-def readPickle(filename):
-	""" Copied from the dataset website """
-	# import pickle5 as pickle 
-	with open('data/'+ filename, 'rb') as f:
-		dict=pickle.load(f, encoding='bytes')
-	f.close()
-	return dict
+    X_stdev = np.std(X, axis=1, keepdims=True)
+    X_mean  = np.mean(X, axis=1, keepdims=True)
+    X = (X - X_mean) / X_stdev
 
-def softmax(x):
-    """ Standard definition of the softmax function """
-    return np.exp(x) / np.sum(np.exp(x), axis=0)
-
-def montage(W,label):
-	""" Display the image for each label in W """
-	import matplotlib.pyplot as plt
-	fig, ax = plt.subplots(2,5,figsize=(12,6))
-	for i in range(2):
-		for j in range(5):
-			im  = W[i*5+j,:].reshape(32,32,3, order='F')
-			sim = (im-np.min(im[:]))/(np.max(im[:])-np.min(im[:]))
-			sim = sim.transpose(1,0,2)
-			ax[i][j].imshow(sim, interpolation='nearest',cmap='RdBu')
-			ax[i][j].set_title(f"y={str(5*i+j)}\n{str(label[5*i+j])}")
-			ax[i][j].axis('off')
-	return fig, ax 
-
-def save_as_mat(model,hist,acc,name):
-	""" Used to transfer a python model to matlab """
-	import scipy.io as sio
-	sio.savemat(name + '.mat',
-			{
-				"W1":model.W1,
-				"W2":model.W2,
-				"b1":model.b1,
-				"b2":model.b2,
-				'lamda':model.lamda,
-				'train_loss':np.array(hist['train_loss']),
-				'train_cost':np.array(hist['train_cost']),
-				'train_acc':np.array(hist['train_acc']),
-				'val_loss':np.array(hist['val_loss']),
-				'val_cost':np.array(hist['val_loss']),
-				'val_acc':np.array(hist['val_acc']),
-				"test_acc":acc
-				})
-	
-def name_case(n_s,eta_min,eta_max,n_batch,n_epochs,lamda):
-	case_name = f"W&B_{n_batch}BS_{n_epochs}Epoch_{n_s}NS_{lamda:.3e}Lambda_{eta_min:.3e}MINeta_{eta_max:.3e}MAXeta"
-	return case_name
-#-----------------------------------------------
+    return X
 
 
+def load_batch(filename):
+    """Loads a data batch
 
-##########################################
-## Functions from scratch 
-## Yuningw 
-##########################################
-
-#----------------------
-#	Data and pre-processing 
-#-----------------------
-#----------------------------------------------
-def LoadBatch():
-	"""
-	Load Data from the binary file using Pickle 
-
-	Returns: 
-		X		: [d,n] 
-		Y		: [1,n] 
-		X_val	: [d,n] 
-		Y_val	: [1,n] 
-		X_test	: [d,n] 
-		Y_test	: [1,n] 
-	"""
-	
-	dt = readPickle("data_batch_1")
-	X 		= np.array(dt[b'data']).astype(np.float64).T
-	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
-	print(f"TRAIN X: {X.shape}")
-	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
-	
-	dt = readPickle("data_batch_2")
-	X_val 		= np.array(dt[b'data']).astype(np.float64).T
-	y_val 		= np.array(dt[b'labels']).astype(np.float64).flatten()
-	print(f"Val X: {X.shape}")
-	print(f"Val Y:{y.shape}, here are {len(np.unique(y))} Labels")
-
-	del dt 
-	return X, y, X_val,y_val
-
-def LoadAll():
-
-	X = []; y = []
-	for n in range(5):
-		dt = readPickle(f"data_batch_{n+1}")
-		X_ = np.array(dt[b'data']).astype(np.float64).T
-		y_ = np.array(dt[b'labels']).astype(np.float64).flatten()
-		X.append(X_)
-		y.append(y_)
-	
-	X = np.concatenate(X,axis=-1)
-	y = np.concatenate(y,axis=-1)
-	print(f"TRAIN X: {X.shape}")
-	print(f"TRAIN Y:{y.shape}, here are {len(np.unique(y))} Labels")
-	return X, y
-
-
-def load_test_data():
-	"""
-	Load Data from the binary file using Pickle 
-
-	Returns: 
-		X	: [d,n] 
-		Y	: [1,n]  
-	"""
-	dt = readPickle("test_batch")
-	X 		= np.array(dt[b'data']).astype(np.float64).T
-	y 		= np.array(dt[b'labels']).astype(np.float64).flatten()
-	print(f"TEST X: {X.shape}")
-	print(f"TEST Y:{y.shape}, here are {len(np.unique(y))} Labels")
-	return X, y
-
-def normal_scaling(X):
-	"""
-	Pre-processing of the data: normalisation and reshape
-
-	Args:
-		X:	Numpy array with shape of Nxd
-	Returns: 
-		X		: Normalized Input 
-		mean_x 	: Mean value of X for sample
-		std_x	: STD of X 
-	"""
-	mean_x = np.repeat(np.mean(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
-	std_x  = np.repeat(np.std(X,axis=1).reshape(-1,1),X.shape[-1],1).astype(np.float64)
-	# print(f"The Mean={mean_x.shape}; Std = {std_x.shape}")	
-	print(f"INFO: Complete Normalisation")
-
-	return (X-mean_x)/std_x, mean_x, std_x
-
-def one_hot_encode(y,K):
-	"""
-	One-hot encoding for y
-	Args:
-		y		: [1,n] Un-encoded ground truth 
-		K		: (int) Number of labels 
-
-	Returns:
-		y_hat 			: [K,n] Encoded ground truth 
-
-	"""
-
-	y_hat = np.zeros(shape=(K, len(y))).astype(np.float64)
-	
-	for il, yi in enumerate(y):
-		y_hat[int(yi),il] = 1
-	
-	return y_hat
-
-def train_validation_split(X, y, validation_ratio=0.2):
-    """
-    Split the dataset into training and validation sets.
-
-    Parameters:
-    - X: numpy array, shape (n_samples, n_features), input data samples.
-    - y: numpy array, shape (n_samples,), input data labels.
-    - validation_ratio: float, ratio of validation data to total data.
-    - random_seed: int, seed for random number generator.
+    Args:
+        filename (str): filename of the data batch to be loaded
 
     Returns:
-    - X_train: numpy array, shape (n_train_samples, n_features), training data samples.
-    - X_val: numpy array, shape (n_val_samples, n_features), validation data samples.
-    - y_train: numpy array, shape (n_train_samples,), training data labels.
-    - y_val: numpy array, shape (n_val_samples,), validation data labels.
+        X (np.ndarray): data matrix (D, N)
+        Y (np.ndarray): one hot encoding of the labels (C, N)
+        y (np.ndarray): vector containing the labels (N,)
     """
-    
-    # Shuffle indices
-    indices = np.arange(X.shape[-1])
-    np.random.shuffle(indices)
-    
-    # Calculate number of validation samples
-    n_val_samples = int(X.shape[-1] * validation_ratio)
-    
-    # Split indices into training and validation indices
-    val_indices =   indices[:n_val_samples]
-    train_indices = indices[n_val_samples:]
-    
-    # Split data into training and validation sets
-    X_train, X_val = X[:,train_indices], X[:,val_indices]
-    y_train, y_val = y[:,train_indices], y[:,val_indices]
-    
-    return X_train, y_train,X_val,y_val
-#----------------------------------------------
+    with open(filename, 'rb') as f:
+        data_dict = pickle.load(f, encoding='bytes')
 
-def dataLoader_OneBatch():
-	# Step 1: Load data
-	X, Y, X_val ,Y_val = LoadBatch()
-	# Define the feature size and label size
-	K = len(np.unique(Y)); d = X.shape[0]
-	# One-Hot encoded for Y 
-	Yenc 	 = one_hot_encode(Y,K)
-	Y_val = one_hot_encode(Y_val,K)
-	print(f"Global K={K}, d={d}")
-	# Load Test Data
-	X_test,Y_test = load_test_data()
-	Y_test =one_hot_encode(Y_test,K)
+        X = normalization((data_dict[b"data"]).T)
+        y = np.array(data_dict[b"labels"])
+        Y = (np.eye(10)[y]).T
 
-	# Step 2: Scaling the data
-	X,muX,stdX 		= normal_scaling(X)
-	X_val    		= (X_val - muX )/stdX
-	X_test    		= (X_test - muX )/stdX
+    return X, Y, y
 
-	return X, Yenc, X_val,Y_val,X_test,Y_test
 
-def dataLoader_FullBatch(split_ratio=0.1):
-	X,Y = LoadAll()
-	K = len(np.unique(Y)); d = X.shape[0]
-	Y 				= one_hot_encode(Y,K)
-	X,muX,stdX 		= normal_scaling(X)
+
+def unpickle(filename):
+    """Unpickle the meta file"""
+
+    with open(filename, 'rb') as f:
+        file_dict = pickle.load(f, encoding='bytes')
+
+    return file_dict
+
+
+
+
+def dl_One_batch():
+    """
+    A dataloader for ONE batch for training 
+    Returns:
+        data (dict):   all the separate data sets
+        labels (list): correct image labels
+    """
+    X_train, Y_train, y_train = \
+        load_batch("data/data_batch_1")
+    X_val, Y_val, y_val = \
+        load_batch("data/data_batch_2")
+    X_test, Y_test, y_test = \
+        load_batch("data/test_batch")
+
+    labels = unpickle(
+        'data/batches.meta')[ b'label_names']
+
+    data = {
+        'X_train': X_train,'Y_train': Y_train,'y_train': y_train,
+        'X_val': X_val,'Y_val': Y_val,'y_val': y_val,
+        'X_test': X_test,'Y_test': Y_test,'y_test': y_test
+    }
+
+    return data, labels
+
+
+def dl_Full_batch(val):
+	"""
+	A dataloader for all five batches
+
+	Args:
+		val: number of data used for valiation
+	"""
+	X_train1, Y_train1, y_train1 = load_batch("data/data_batch_1")
+	X_train2, Y_train2, y_train2 = load_batch("data/data_batch_2")
+	X_train3, Y_train3, y_train3 = load_batch("data/data_batch_3")
+	X_train4, Y_train4, y_train4 = load_batch("data/data_batch_4")
+	X_train5, Y_train5, y_train5 = load_batch("data/data_batch_5")
 	
-	X,Y,X_val,Y_val =train_validation_split(X,Y,split_ratio)
-	X_test,Y_test 	= load_test_data()
-	Y_test 			= one_hot_encode(Y_test,K)
-	X_test    		= (X_test - muX[:,:X_test.shape[-1]] )/stdX[:,:X_test.shape[-1]]
-	print(f"FINISHED NORMALISATION")
-	print(f"SUMMARY DATA: TRAIN={X.shape},{Y.shape}")
-	print(f"SUMMARY DATA: VAL={X_val.shape},{Y_val.shape}")
-	print(f"SUMMARY DATA: TEST={X_test.shape},{Y_test.shape}")
+	X_train = np.concatenate((X_train1, X_train2, X_train3, X_train4, X_train5),axis=1)
+	Y_train = np.concatenate((Y_train1, Y_train2, Y_train3, Y_train4, Y_train5),axis=1)
+	y_train = np.concatenate((y_train1, y_train2, y_train3, y_train4, y_train5))
 	
-	del muX, stdX 
-	return X,Y,X_val,Y_val,X_test,Y_test
+	X_val = X_train[:, -val:]
+	Y_val = Y_train[:, -val:]
+	y_val = y_train[-val:]
+	X_train = X_train[:, :-val]
+	Y_train = Y_train[:, :-val]
+	y_train = y_train[:-val]
 
-#----------------------
-#	Model
-#-----------------------
-#----------------------------------------------
+	X_test, Y_test, y_test = load_batch("data/test_batch")
+	labels = unpickle('data/batches.meta')[ b'label_names']
 
-class mlp:
-	def __init__(self,k_,d_,
-			  		h_size=[50],
-					lamda=0,
-					ifact= True,
-					ifBN = True
-				):
-		self.K  		= k_ 
-		self.d  		= d_ 
-		self.m  		= h_size 
-		self.num_layer  = len(h_size)
-		self.lamda 		= lamda
-		self.init_WB()
-		print(f"INFO: Model initialised: LAMBDA = {self.lamda:3e} K={self.K}, d={self.d}, m={self.m}")
-		
+	data = {'X_train': X_train,'Y_train': Y_train,'y_train': y_train,
+        'X_val': X_val,'Y_val': Y_val,'y_val': y_val,
+        'X_test': X_test,'Y_test': Y_test,'y_test': y_test}
+    
+	return data, labels
 
-		# More dictionary for computation
-		self.layerout = {}
-		self.W_grad = {}
-		self.b_grad = {}
+def make_layers_param(shapes, activations):
+    """Create the layers of the network
 
-	def forward(self,x,return_hidden=False):
-		"""
-		Forward Propagation 
-		"""
-		
-		# if self.num_layer > 1:
+    Args:
+        shapes      (list): the shapes per layer as tuples
+        activations (list): the activation functions per layer as strings
+    Returns:
+        layers:	 (dict) the shape and activation function of
+        each layer
+    """
+    if len(shapes) != len(activations):
+        raise RuntimeError('The size of shapes should equal the size of activations.')
 
-		self.layerout[f'h0'] = x
-		for il in range(1,self.num_layer+2):
-			hkey  = f'h{il}'
-			hkey_ = f'h{il-1}'
-			Wkey  = f"W{il}"
-			bkey  = f"b{il}"
-			if il ==1:
-				self.layerout[hkey] = self.W_dict[Wkey] @ (self.layerout[hkey_]) + self.b_dict[bkey]
-			else:
-				self.layerout[hkey] = self.W_dict[Wkey] @ ReLU(self.layerout[hkey_]) + self.b_dict[bkey]
-		
-		
-		return softmax(self.layerout[hkey])  
+    layers = OrderedDict([])
 
-	def cost_func(self,X,Y,return_loss = False):
-		"""
-		Compute the cost function: c = loss + regularisation 
+    for i, (shape, activation) in enumerate(zip(shapes, activations)):
+        layers["layer%s" % i] = {"shape": shape, "activation": activation}
 
-		Args: 
-			X	: [d,n] input 
-			Y	: [K,n] One-Hot Ground Truth 
-		
-		Return:
-			J	: (float) A scalar of the cost function 
-		"""
-		import numpy.linalg as LA
-		# Part 1: compute the loss:
-		## 1 Compute prediction:
-		P = self.forward(X)
-		## Cross-entropy loss
-		# Clip the value to avoid ZERO in log
-		P = np.clip(P,1e-16,1-1e-16)
-		l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0)).astype(np.float64)
-		
-		# Part 2: Compute the regularisation 
-		reg = 0 
-		for il in range(self.num_layer+1):
-			reg += np.sum(self.W_dict[f"W{il+1}"]**2)
-		reg *= self.lamda
-		# Assemble the components
-		J = l_cross + reg
+    return layers
 
-		del X, Y, P 
-		if return_loss:
-			return J, l_cross
-		else: 
-			return J 
 
-	def compute_acc(self,X,Y):
-		"""
-		Compute the accuracy of the classification 
-		
-		Args:
 
-			X	: [d,n] input 
-			Y	: [1,n] OR [d,n] Ground Truth 
-			
-		Returns: 
 
-			acc : (float) a scalar value containing accuracy 
-		"""
+##########################################
+## K-layer classifier 
+##########################################
+class mlp():
+    """
+    A MLP classifier with mini-batch gradient descent
+    """
+    def __init__(self, data, layers, alpha=0.8, if_batch_norm=False):
+        """
+        Initialization of the model 
+        Args:
+        data        :   (dict) A dictionary contains the training, val and test data 
+        layers	    :   (dict) A dictionary of hyperparameters and activation function to use 
+        alpha	    :   (float) initial value for moving average 
+        if_batch_norm  :    (bool) IF use BatchNorm in this class
+        """
 
-		lenY = Y.shape[-1]
-		# Generate Output with [K,n]
-		P = self.forward(X)
-		#Compute the maximum prob 
-		# [K,n] -> K[1,n]
-		P = np.clip(P,1e-16,1-1e-16)
-		P = np.argmax(P,axis=0)
-		# Compute how many true-positive samples
-		if Y.shape[0] != 1: Y = np.argmax(Y,axis=0)
+        # Get data by attribute 
+        for ky,vl in data.items():
+            setattr(self,ky,vl)
 
-		true_pos = np.sum(P == Y)
-		# Percentage on total 
-		acc =  true_pos / lenY
-		
-		del P , X , Y
+        self.layers = layers
+        self.k      = len(layers)-1 # Number of layer 
+        self.alpha  = alpha 
+        self.if_batch_norm = if_batch_norm
+        self.activation_funcs = {'relu':self._relu,"softmax":self._softmax}
+        print(f"IF USE BN: {self.if_batch_norm}")
 
-		return acc
+        self.W, self.b, self.gamma, self.beta, self.mu_av, self.var_av, \
+        self.activations = [], [], [], [], [], [], []
 
-	def computeGradient(self,x,y):
-		"""
-		Compute the Gradient w.r.t the W&B 
 
-		Args:
+        for layer in layers.values():
+            for k, v in layer.items():
+                if k == "shape":
+                    # According to the parameter we generate and initialize the W&B
+                    W, b, gamma, beta, mu_av, var_av = self._he_init(v)
+                    self.W.append(W), self.b.append(b)
+                    self.gamma.append(gamma), self.beta.append(beta)
+                    self.mu_av.append(mu_av), self.var_av.append(var_av)
+                elif k == "activation":
+                    # We generate the activation like a tuple, but same utilities as dictionary
+                    self.activations.append((v, self.activation_funcs[v]))
 
-			x	: [d,n] input 
-			y	: [1,n] Ground Truth 
-		"""
+        if self.if_batch_norm:
+            self.params = {"W": self.W, "b": self.b, "gamma": self.gamma,
+                        "beta": self.beta}
+        else:
+            self.params = {"W": self.W, "b": self.b}
 
-		# compute the Prediction 
-		p = self.forward(x)
-		
-		# Start Back Prop
-		for il in reversed(range(1,self.num_layer+2)):
-			print(f"Compute Grad for Layer:{il}")
 
-			if il == self.num_layer+1:
-				g = -(y - p).T
-				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T.astype(np.float64)
-				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T.astype(np.float64)
+    # Without creating object, facilitate the speed
+    @staticmethod
+    def _he_init(d,stdev=1e-1):
+        """He Kaiming initialization"""
 
-			# elif il >1 and il<self.num_layer+1:
-			else:
-				g = g @ self.W_dict[f'W{il+1}']
-				g[self.layerout[f'h{il}'].T <=0.0 ] = 0.0
+        W      = np.random.normal(0, stdev, size=(d[0], d[1]))
+        b      = np.zeros(d[0]).reshape(d[0], 1)
+        gamma  = np.ones((d[0], 1))
+        beta   = np.zeros((d[0], 1))
+        mu_av  = np.zeros((d[0], 1))
+        var_av = np.zeros((d[0], 1))
 
-				self.b_grad[f'b{il}'] = np.sum(g,axis=0,keepdims=True).T.astype(np.float64)
-				self.W_grad[f'W{il}']= g.T @ ReLU(self.layerout[f'h{il-1}']).T.astype(np.float64)
-			
+        return W, b, gamma, beta, mu_av, var_av
+    
+    @staticmethod
+    def _softmax(x):
+        s = np.exp(x - np.max(x, axis=0)) / \
+                np.exp(x - np.max(x, axis=0)).sum(axis=0)
+        return s
 
-	def backward(self,x,y,eta_,batch_size):
-		"""Back Prop for Update the W&B"""
 
-		for il in range(1,self.num_layer+2):
-			self.W_dict[f"W{il}"] -= eta_ * ((1/batch_size)*(self.W_grad[f'W{il}']) + 2*self.lamda*self.W_dict[f'W{il}'])
-			self.b_dict[f"b{il}"] -= eta_ * ((1/batch_size)*(self.b_grad[f'b{il}']))
+    @staticmethod
+    def _relu(x):
+        x[x<0] = 0
+        return x
 
-		
-	
-	def train(self,X,Y,X_val,Y_val,lr_sch,n_epochs,n_batch,fix_eta = 1e-3):
-		
-		print(f'Start Training, Batch Size = {n_batch}')
-		lenX = X.shape[-1]
-		lenX_val = X_val.shape[-1]
-		batch_size = n_batch
-		train_batch_range = np.arange(0,lenX//n_batch)
 
-		hist = {}; hist['train_cost'] = []; hist['val_cost'] = []
-		hist['train_loss'] = []; hist['val_loss'] = []
-		hist["train_acc"] = []; hist["val_acc"] = []
-		st = time.time()
-		for epoch in (range(n_epochs)): 
-			
-			epst = time.time()
-			# Shuffle the batch indicites 
-			indices = np.random.permutation(lenX)
-			X = X[:,indices]
-			Y = Y[:,indices]
-			for b in (train_batch_range):
-				
-				eta_ = (lr_sch.eta if lr_sch != None else fix_eta)
+    def eval_gradients(self, grads_a, grads_n):
+        """Maximum relative error between the analytical and numerical gradients
 
-				X_batch = X[:,b*batch_size:(b+1)*batch_size]
-				Y_batch = Y[:,b*batch_size:(b+1)*batch_size]
-				
-				self.backward(  X_batch,
-								Y_batch,
-								eta_,
-								batch_size)
-				if lr_sch !=None:
-					lr_sch.update_lr()
+        Args:
+            grads_a (np.ndarray): analytical gradients
+            grads_n (np.ndarray): numerical gradients
+        """
+        num_layers = len(grads_a["W"])
+        for l in range(num_layers):
+            print(f"INFO: Checking layer:{l}")
+            for key in grads_a:
+                
+                # |ga - gf|
+                e = abs(grads_a[key][l].flat[:] - grads_n[key][l].flat[:])
+                
+                # max(|ga|, |gf|)
+                s = np.asarray([max(abs(a), abs(b)) + 1e-10 for a,b in
+                    zip(grads_a[key][l].flat[:], grads_n[key][l].flat[:])])
+                
+                max_rel_err = max(e / s)
+                print("The relative error for layer %d %s: %.6g" %
+                        (l+1, key, max_rel_err))
+    
 
-				if lr_sch.t % batch_size == 0:
-					# Compute the cost func and loss func
-					jc,l_train = self.cost_func(X,Y,return_loss=True)
-					hist['train_cost'].append(jc)
-					hist['train_loss'].append(l_train)
-					jc_val,l_val  = self.cost_func(X_val,Y_val,return_loss=True)
-					hist['val_cost'].append(jc_val)
-					hist['val_loss'].append(l_val)
-					# Compute the accuracy 
-					train_acc 		= self.compute_acc(X,Y)
-					val_acc 		= self.compute_acc(X_val,Y_val)
-					hist["train_acc"].append(train_acc)
-					hist["val_acc"].append(val_acc)
+    def forward_prop(self, X, is_testing=False, is_training=False):
+        """ Forward propagation of the model
+        Args:
+            X     (np.ndarray): data matrix (D, N_batch)
+            is_testing  (bool): testing mode
+            is_training (bool): training mode
 
-				
-			epet = time.time()
-			epct = epet - epst
-			
-			if lr_sch !=None: 
-				print(f"\n Epoch ({epoch+1}/{n_epochs}), At Step =({lr_sch.t}/{n_epochs*lenX//batch_size}), Cost Time = {epct:.2f}s\n"+\
+        Returns:
+            H          Hidden output for hidden layer without activaction values
+            P          final outpur
+            S          Hidden output with activation
+            S_hat      normalized Hidden output with activation
+            means      mean vectors
+            variancess variance vectors
+        """
+        N = X.shape[1]
+        s = np.copy(X)
+        # IF use BN:
+        if self.if_batch_norm:
+            S, S_hat, means, variances, H = [], [], [], [], []
+            for i, (W, b, gamma, beta, mu_av, var_av, activation) in enumerate(
+                    zip(self.W, self.b, self.gamma, self.beta, self.mu_av,
+                        self.var_av, self.activations)):
+                
+                H.append(s)
+                s = W@s + b
+               
+                if i < self.k:
+                    
+                    S.append(s)
+                    # For test mode we do not update the moving average
+                    if is_testing:
+                        s = (s - mu_av) / np.sqrt(var_av + \
+                                np.finfo(np.float64).eps)
+
+                    # For training and validation
+                    else:
+                        mu = np.mean(s, axis=1, keepdims=True)
+                        means.append(mu)
+                        var = np.var(s, axis=1, keepdims=True) * (N-1)/N
+                        variances.append(var)
+
+                        # During training we need to update the moving average
+                        if is_training:
+                            self.mu_av[i]  = self.alpha * mu_av + \
+                                    (1-self.alpha) * mu
+                            self.var_av[i] = self.alpha * var_av + \
+                                    (1-self.alpha) * var
+
+                        s = (s - mu) / np.sqrt(var + np.finfo(np.float64).eps)
+
+                    S_hat.append(s)
+                    s = activation[1](np.multiply(gamma, s) + beta)
+                # For the last layer
+                else: 
+                    P = activation[1](s)
+         
+              
+            return H, P, S, S_hat, means, variances
+            
+
+        else:
+            # if not self.if_batch_norm:
+            H = []
+            for W, b, activation in zip(self.W, self.b, self.activations):
+                if activation[0] == "relu":
+                    s = activation[1](W@s + b)
+                    H.append(s)
+                if activation[0] == "softmax":
+                    ps = activation[1](W@s + b)
+            
+            return H, ps
+    
+
+    def cost_func(self, X, Y, labda, is_testing=False):
+        """Computes the cost function of the classifier using the cross-entropy loss
+
+        Args:
+            X     (np.ndarray): data matrix (D, N)
+            Y     (np.ndarray): one-hot encoding labels matrix (C, N)
+            labda (np.float64): regularization term
+            is_testing  (bool): flag to indicate the testing phase
+
+        Returns:
+            lost (np.float64): current loss of the model
+            cost (np.float64): current cost of the model
+        """
+        N = X.shape[1]
+
+        if self.if_batch_norm:
+            _, px, _, _, _, _ = self.forward_prop(X, is_testing=is_testing)
+        else:
+            _, px = self.forward_prop(X)
+
+        # Part 1: Loss func
+        loss = np.float64(1/N) * - np.sum(Y*np.log(px))
+
+        # Part 2: L2 Regularisation
+        squaredWeights = 0
+        for W in self.W:
+            squaredWeights += (np.sum(np.square(W)))
+        cost = loss + labda * squaredWeights
+
+        return loss, cost
+    
+    def compute_accuracy(self, X, y, is_testing=False):
+        """ Assess the accuracy of the classifier"""
+        if self.if_batch_norm:
+            argMaxP = np.argmax(self.forward_prop(
+                X, is_testing=is_testing)[1], axis=0)
+        else:
+            argMaxP = np.argmax(self.forward_prop(X)[1], axis=0)
+
+        # Compute the proportion of TP sample
+        acc = argMaxP.T[argMaxP == np.asarray(y)].shape[0] / X.shape[1]
+
+        return acc
+
+    def compute_gradients(self, X_batch, Y_batch, labda):
+        """ Analytical gradients for W&B"""
+
+        N = X_batch.shape[1] #  Batch size
+
+        # NO Batch norm
+        #-----------------------------------------------------
+        if not self.if_batch_norm:
+            grads = {"W": [], "b": []}
+            for W, b in zip(self.W, self.b):
+                grads["W"].append(np.zeros_like(W))
+                grads["b"].append(np.zeros_like(b))
+
+            # Forward pass
+            H_batch, P_batch = self.forward_prop(X_batch)
+
+            # Backward pass
+            G_batch = - (Y_batch - P_batch)
+
+            # for l = k, k-1, ..., 2
+            for l in range(len(self.layers) - 1, 0, -1):
+                grads["W"][l] = 1/N * G_batch@H_batch[l-1].T + 2 * labda * self.W[l]
+                grads["b"][l] = np.reshape(1/N * G_batch@np.ones(N),
+                                        (grads["b"][l].shape[0], 1))
+
+                G_batch = self.W[l].T@G_batch
+                H_batch[l-1][H_batch[l-1] <= 0] = 0
+                G_batch = np.multiply(G_batch, H_batch[l-1] > 0)
+
+            grads["W"][0] = 1/N * G_batch@X_batch.T + labda * self.W[0]
+            grads["b"][0] = np.reshape(1/N * G_batch@np.ones(N), self.b[0].shape)
+        
+
+        # Batch Normalisation
+        #-----------------------------------------------------        
+        else:
+            grads = {"W": [], "b": [], "gamma": [], "beta": []}
+
+            for key in self.params:
+                for par in self.params[key]:
+                    grads[key].append(np.zeros_like(par))
+
+            # Forward pass
+            H_batch, P_batch, S_batch, S_hat_batch, means_batch, vars_batch = \
+                    self.forward_prop(X_batch, is_training=True)
+
+            # Backward pass
+            G_batch = - (Y_batch - P_batch)
+
+            # Update the last layer first as we do not have BN in this layer 
+            grads["W"][self.k] = 1/N * G_batch@H_batch[self.k].T + \
+                    2 * labda * self.W[self.k]
+            
+            grads["b"][self.k] = np.reshape(1/N * G_batch@np.ones(N),
+                    (grads["b"][self.k].shape[0], 1))
+
+            G_batch = self.W[self.k].T@G_batch
+            H_batch[self.k][H_batch[self.k] <= 0] = 0
+            G_batch = np.multiply(G_batch, H_batch[self.k] > 0)
+
+            # for l = k-1, k-2, ..., 1
+            for l in range(self.k - 1, -1, -1):
+                grads["gamma"][l] = np.reshape(1/N * np.multiply(G_batch,
+                    S_hat_batch[l])@np.ones(N), (grads["gamma"][l].shape[0], 1))
+                grads["beta"][l]  = np.reshape(1/N * G_batch@np.ones(N),
+                        (grads["beta"][l].shape[0], 1))
+
+                G_batch = np.multiply(G_batch, self.gamma[l])
+
+                G_batch = self.batchNorm_backprop(G_batch, S_batch[l],
+                        means_batch[l], vars_batch[l])
+
+                grads["W"][l] = 1/N * G_batch@H_batch[l].T + 2 * labda * self.W[l]
+
+                grads["b"][l] = np.reshape(1/N * G_batch@np.ones(N),
+                                        (grads["b"][l].shape[0], 1))
+                if l > 0:
+                    G_batch = self.W[l].T@G_batch
+                    H_batch[l][H_batch[l] <= 0] = 0
+                    G_batch = np.multiply(G_batch, H_batch[l] > 0)
+
+        return grads
+
+
+    def batchNorm_backprop(self, G_batch, S_batch, mean_batch, var_batch):
+        """Computation of the batch normalization back pass
+            Following Equations 31 - 37 in the instruction
+        """
+        N = G_batch.shape[1]
+        sigma1 = np.power(var_batch + np.finfo(np.float64).eps, -0.5)
+        sigma2 = np.power(var_batch + np.finfo(np.float64).eps, -1.5)
+
+        G1 = np.multiply(G_batch, sigma1)
+        G2 = np.multiply(G_batch, sigma2)
+
+        D = S_batch - mean_batch
+
+        c = np.sum(np.multiply(G2, D), axis=1, keepdims=True)
+
+        G_batch = G1 - 1/N * np.sum(G1, axis=1, keepdims=True) - \
+                1/N * np.multiply(D, c)
+
+        return G_batch
+
+    def compute_gradients_num(self, X_batch, Y_batch, size=2,
+            labda=np.float64(0), h=np.float64(1e-5)):
+        """Central difference for the gradients of W&B"""
+        if self.if_batch_norm:
+            grads = {"W": [], "b": [], "gamma": [], "beta": []}
+        else:
+            grads = {"W": [], "b": []}
+
+        for j in range(len(self.b)):
+            for key in self.params:
+                grads[key].append(np.zeros(self.params[key][j].shape))
+                for i in range(len(self.params[key][j].flatten())):
+                    old_par = self.params[key][j].flat[i]
+                    self.params[key][j].flat[i] = old_par + h
+                    _, c2 = self.cost_func(X_batch, Y_batch, labda)
+                    self.params[key][j].flat[i] = old_par - h
+                    _, c3 = self.cost_func(X_batch, Y_batch, labda)
+                    self.params[key][j].flat[i] = old_par
+                    grads[key][j].flat[i] = (c2-c3) / (2*h)
+
+        return grads
+    
+    def backward(self,X_batch,Y_batch, eta,labda):
+        """Use the gradient to update the parameters"""
+
+        grads = self.compute_gradients(X_batch, Y_batch, labda)
+
+        for key in self.params:
+            for par, grad in zip(self.params[key], grads[key]):
+                par -= eta * grad
+
+
+    def train(self, X, Y, lr_sch, labda, n_epochs,batch_s):
+        """Mini-batch gradient descent"""
+
+        lenX = X.shape[-1]
+        train_batch_range = np.arange(0,lenX//batch_s)
+        
+        hist = {}; hist['train_cost'] = []; hist['val_cost'] = []
+        hist['train_loss'] = []; hist['val_loss'] = []
+        hist["train_acc"] = []; hist["val_acc"] = []
+        
+        for epoch in range(n_epochs):
+            epst = time.time()
+            # Shuffle the batch indicites 
+            indices = np.random.permutation(lenX)
+            X = X[:,indices]
+            Y = Y[:,indices]
+            
+            for b in range(train_batch_range):
+                
+                j_start = (b) * batch_s
+                j_end = (b+1) * batch_s
+
+                X_batch = X[:, j_start:j_end]
+                Y_batch = Y[:, j_start:j_end]
+
+                # Update the Param
+                self.backward(self,X_batch,Y_batch, lr_sch.eta,labda)
+                # Update the lr schedule
+                lr_sch.update_lr()
+
+                if lr_sch.t % batch_s == 0:
+                    # Compute and record the loss func
+                    loss_train, costs_train = self.compute_cost(X, Y, labda)
+                    hist['train_cost'].append(costs_train)
+                    hist['train_loss'].append(loss_train)
+                    
+                    loss_val, costs_val     = self.compute_cost(self.X_val, self.Y_val, labda)
+                    hist['val_cost'].append(costs_val)
+                    hist['val_loss'].append(loss_val)
+
+                    acc_train = self.compute_accuracy(self.X_train, self.y_train)
+                    acc_val = self.compute_accuracy(self.X_val, self.y_val)
+                    hist["train_acc"].append(acc_train)
+                    hist["val_acc"].append(acc_val)
+
+            epet = time.time()
+            epct = epet - epst
+            print(f"\n Epoch ({epoch+1}/{n_epochs}), At Step =({lr_sch.t}/{n_epochs*lenX//batch_s}), Cost Time = {epct:.2f}s\n"+\
 					f" Train Cost ={hist['train_cost'][-1]:.3f}, Val Cost ={hist['val_cost'][-1]:.3f}\n"+\
 					f" Train Loss ={hist['train_loss'][-1]:.3f}, Val Loss ={hist['val_loss'][-1]:.3f}\n"+\
 					f" Train Acc ={hist['train_acc'][-1]:.3f}, Val Acc ={hist['val_acc'][-1]:.3f}\n"+\
 					f" The LR = {lr_sch.eta:.4e}")
-			
-			else:
-				print(f"\n Epoch ({epoch+1}/{n_epochs}),Cost Time = {epct:.2f}s\n"+\
-					f" Train Cost ={hist['train_cost'][-1]:.3f}, Val Cost ={hist['val_cost'][-1]:.3f}\n"+\
-					f" Train Loss ={hist['train_loss'][-1]:.3f}, Val Loss ={hist['val_loss'][-1]:.3f}\n"+\
-					f" Train Acc ={hist['train_acc'][-1]:.3f}, Val Acc ={hist['val_acc'][-1]:.3f}\n"+\
-					f" The LR = {fix_eta:.4e}")
-
-		et 	=  time.time()
-		self.cost_time = et - st 
-		print(f"INFO: Training End, Cost Time = {self.cost_time:.2f}")
-		self.hist = hist
-
-		return self.hist
-	
-
-
-	def init_WB(self):
-		"""
-		Initialising The W&B, we use normal distribution as an initialisation strategy 
-		Args:
-			K	:	integer of the size of feature size
-			d 	:	integer of the size of label size
-			m 	:	A list of integer of the size of Hidden layer, here is fixed to 50
-		Returns:
-			W_dict : dictionary for all the Weight 
-			
-			b_dict : dictionary for all the bias
-
-		"""
-		mu = 0
-		self.W_dict= {}
-		self.b_dict= {}
-		m = self.m
-		K = self.K
-		d = self.d
-		num_hidden = len(m)
-		
-		for i,h_size in enumerate(m):
-			keyW = f"W{i+1}"
-			keyb = f"b{i+1}"
-			if i==0:
-				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,self.d)).astype(np.float64)
-				self.b_dict[keyb] = np.zeros(shape=(h_size,1)).astype(np.float64)
-			else:	
-				self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(h_size,m[i-1])).astype(np.float64)
-				self.b_dict[keyb] = np.zeros(shape=(h_size,1)).astype(np.float64)
-
-			print(f"INFO:W&B init: {keyW}={self.W_dict[keyW].shape}, {keyb}={self.b_dict[keyb].shape}")
-
-		#Layer 2 
-		keyW = f"W{num_hidden+1}"
-		keyb = f"b{num_hidden+1}"
-		lend = m[-1]
-		self.W_dict[keyW] = np.random.normal(loc=mu,scale=1e-3,size=(self.K,lend)).astype(np.float64)
-		self.b_dict[keyb] = np.zeros(shape=(self.K,1)).astype(np.float64)
-		
-		print(f"INFO: Last W&B init: {keyW}={self.W_dict[keyW].shape}, {keyb}={self.b_dict[keyb].shape}")
-	
+        
+        self.hist = hist
+        return self.hist
 
 
 
-#----------------------
-#	Training 
-#-----------------------
-#----------------------------------------------
+
+
 
 class lr_scheduler:
 	def __init__(self,eta_max,eta_min,n_s):
@@ -626,360 +645,99 @@ class lr_scheduler:
 		self.t +=1
 
 
+######
+# The nittest class for debugging the code. 
+######
+class TestMethods(unittest.TestCase):
+    def test_sizes(self):
+        print("INFO: TEST The basic function utilities")
+        data, labels = dl_One_batch()
 
-#----------------------
-#	Forward Prop  Utils
-#-----------------------
-#----------------------------------------------
-def ReLU(x):
-	"""
-	Activation function 
-	"""
-	# If x>0 x = x; If x<0 x = 0 
-	x = np.maximum(0,x)
-	return x
+        layers = make_layers_param(
+                shapes=[(50, 3072), (10, 50)],
+                activations=["relu", "softmax"])
 
+        clf = mlp(data, layers)
 
-def EvaluateClassifier(x,W_dict,b_dict,num_layer):
-	"""
-	Forward Prop of the model 
-	Args:
-		X: [d,n] inputs 
-		W: [K,d] Weight 
-		b: [K,1] bias
-	Returns:
-		P: [K,n] The outputs as one-hot classification
-	"""
-	layerout = {}
-	layerout[f'h0'] = x
-	for il in range(num_layer+1):
-		hkey = f'h{il+1}'
-		Wkey = f"W{il+1}"
-		bkey = f"b{il+1}"
-		if il == 0:
-			layerout[hkey] = W_dict[Wkey] @ x + b_dict[bkey]
-		else:
-			hkey_ = f'h{il}'
-			layerout[hkey] = W_dict[Wkey] @ ReLU(layerout[hkey_]) + b_dict[bkey]
-		
+        grads = clf.compute_gradients(clf.X_train, clf.Y_train, labda=0)
 
-	return softmax(layerout[hkey]), layerout
-	
+        # Assert for test if they are the same:
+        self.assertEqual(clf.X_train.shape, (3072, 10000))
+        self.assertEqual(clf.Y_train.shape, (10, 10000))
+        self.assertEqual(np.shape(clf.y_train), (10000,))
+        self.assertEqual(clf.W[0].shape, (50, 3072))
+        self.assertEqual(clf.b[0].shape, (50, 1))
+        self.assertEqual(clf.W[1].shape, (10, 50))
+        self.assertEqual(clf.b[1].shape, (10, 1))
+        self.assertEqual(clf.forward_prop(clf.X_train)[0][0].shape,
+                        (50, 10000))
+        self.assertEqual(clf.forward_prop(clf.X_train)[1].shape,
+                        (10, 10000))
+        self.assertAlmostEqual(sum(sum(clf.forward_prop(
+            clf.X_train[:, 0].reshape((clf.X_train.shape[0], 1)))[1])), 1)
+        self.assertIsInstance(clf.cost_func(clf.X_train, clf.Y_train,
+            labda=0)[1], float)
+        self.assertEqual(grads["W"][0].shape, clf.W[0].shape)
+        self.assertEqual(grads["b"][0].shape, clf.b[0].shape)
+        self.assertEqual(grads["W"][1].shape, clf.W[1].shape)
+        self.assertEqual(grads["b"][1].shape, clf.b[1].shape)
 
 
+    def test_grad_NOBN(self):
+        data, labels = dl_One_batch()
+        trunc = 10 
+        bs    =  1
+        layers = make_layers_param(
+                shapes=[(50, trunc), (50, 50), (50, 50), (10, 50)],
+                activations=["relu", "relu", "relu", "softmax"])
+
+        clf = mlp(data,layers,if_batch_norm=False)
+
+        grads_ana = clf.compute_gradients(
+                clf.X_train[:trunc, :bs],
+                clf.Y_train[:trunc, :bs],
+                labda=0)
+
+        grads_num = clf.compute_gradients_num(
+                clf.X_train[:trunc, :bs],
+                clf.Y_train[:trunc, :bs],
+                labda=0,h=1e-5)
+
+        clf.eval_gradients(grads_ana, grads_num)
 
 
-def ComputeGradsNum(X, Y, model, h=1e-5):
-	""" 
-	Converted from matlab code 
-	
-	"""
-	from copy import deepcopy
-	grad_W = {}
-	grad_b = {}
-	c1 = model.cost_func(X,Y)
+    def test_grad_BN(self):
 
-	
-	for il in range(1,model.num_layer + 2):
+        trunc = 10
+        bs    = 1
+        data, labels = dl_One_batch()
+        layers = make_layers_param(
+                shapes=[(50, trunc), (50, 50), (10, 50)],
+                activations=["relu", "relu", "softmax"])
 
-		grad_W[f'W{il}'] = np.zeros_like(model.W_dict[f'W{il}']).astype(np.float64)
-		grad_b[f'b{il}'] = np.zeros_like(model.b_dict[f'b{il}']).astype(np.float64)
-		
-		xW, yW = grad_W[f"W{il}"].shape
-		xb     = len(grad_b[f"b{il}"])
+        clf = mlp(data, layers=layers, if_batch_norm=True)
 
-		for i in range(xW):
-			for j in range(yW):
-				W_dict = deepcopy(model.W_dict)
-				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
-				W_try[i,j] += h
-				W_dict[f'W{il}'] = W_try
-				c2 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
-				grad_W[f"W{il}"][i,j] = (c2-c1) / (h)
+        grads_ana = clf.compute_gradients(
+                clf.X_train[:trunc, :bs],
+                clf.Y_train[:trunc, :bs],
+                labda=0)
 
-		
-		for i in range(xb):
-			b_dict = deepcopy(model.b_dict)
-			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
-			b_try[i] += h
-			b_dict[f'b{il}'] = b_try
-			c2 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
-			grad_b[f"b{il}"][i] = (c2-c1) / (h)
+        grads_num = clf.compute_gradients_num(
+                clf.X_train[:trunc, :bs],
+                clf.Y_train[:trunc, :bs],
+                labda=0,
+                h=np.float64(1e-5))
 
-		keyW = f"W{il}"
-		keyb = f"b{il}"
-		print(f"INFO: Compute {il} Layer, " + \
-			 f"gradient Shape = {grad_W[keyW].shape}, {grad_b[keyb].shape}"
-			 )
-	
-	return grad_W, grad_b
-
-def ComputeGradsNumSlow(X, Y, model, h=1e-5):
-	""" 
-	Converted from matlab code 
-	
-	"""
-	from copy import deepcopy
-	grad_W = {}
-	grad_b = {}
-	c1 = model.cost_func(X,Y)
-
-	
-	for il in range(1,model.num_layer + 2):
-
-		grad_W[f'W{il}'] = np.zeros_like(model.W_dict[f'W{il}']).astype(np.float64)
-		grad_b[f'b{il}'] = np.zeros_like(model.b_dict[f'b{il}']).astype(np.float64)
-		
-		xW, yW = grad_W[f"W{il}"].shape
-		xb     = len(grad_b[f"b{il}"])
-
-		for i in range(xW):
-			for j in range(yW):
-				W_dict = deepcopy(model.W_dict)
-				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
-				W_try[i,j] -= h
-				W_dict[f'W{il}'] = W_try
-				c1 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
-				
-				W_dict = deepcopy(model.W_dict)
-				W_try = np.array(W_dict[f"W{il}"]).astype(np.float64)
-				W_try[i,j] += h
-				W_dict[f'W{il}'] = W_try
-				c2 = ComputeCost(X,Y,W_dict,model.b_dict,model.num_layer)
-				
-				grad_W[f"W{il}"][i,j] = (c2-c1) / (2*h)
-
-		
-		for i in range(xb):
-
-			b_dict = deepcopy(model.b_dict)
-			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
-			b_try[i] -= h
-			b_dict[f'b{il}'] = b_try
-			c1 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
-			
-			b_dict = deepcopy(model.b_dict)
-			b_try = np.array(b_dict[f'b{il}']).astype(np.float64)
-			b_try[i] += h
-			b_dict[f'b{il}'] = b_try
-			c2 = ComputeCost(X,Y,model.W_dict,b_dict,model.num_layer)
-			
-			
-			grad_b[f"b{il}"][i] = (c2-c1) / (2*h)
-
-		print(f"INFO: Compute {il} Layer")
-	
-	return grad_W, grad_b
-#----------------------
-#	Back Prop  
-#-----------------------
-#----------------------------------------------
+        clf.eval_gradients(grads_ana, grads_num)
 
 
 
 
-def Prop_Error(ga,gn,eps):
-	"""
-	Compute the propagation Error with uncertainty
-	"""
-
-	eps_m = np.ones_like(ga).astype(np.float64) * eps
-	n,m = ga.shape
-	summ  = np.abs(ga)+np.abs(gn)
-
-	return np.abs(ga-gn)/np.maximum(eps_m,summ)
-	# return np.abs(ga-gn)/np.maximum(ga+np.finfo(float).eps,gn+np.finfo(float).eps)
 
 
 
-def ComputeCost(X,Y,W_dict,b_dict,num_layer):
-	"""
-	Compute the cost function: c = loss + regularisation 
 
-	Args: 
-		X	: [d,n] input 
-		Y	: [K,n] One-Hot Ground Truth 
-		W 	: [K,d] Weight 
-		b	: [d,1] bias 
-		lamb: (float) a regularisation term for the weight
-	
-	Return:
-		J	: (float) A scalar of the cost function 
-	"""
-	
-	# Part 1: compute the loss:
-	## 1 Compute prediction:
-	P, _ = EvaluateClassifier(X,W_dict,b_dict,num_layer)
-	## Cross-entropy loss
-	# Clip the value to avoid ZERO in log
-	P 		= np.clip(P,1e-16,1-1e-16)
-	l_cross =  -np.mean(np.sum(Y*np.log(P),axis=0))
-	# Part 2: Compute the regularisation 
-
-	return l_cross
-
-#----------------------------------------------
-
-
-
-#----------------------
-#	Post-Processing 
-#-----------------------
-#----------------------------------------------
-def plot_loss(interval, loss,fig=None,axs=None,color=None,ls=None):
-	if fig==None:
-		fig, axs = plt.subplots(1,1,figsize=(6,4))
-	
-	if color == None: color = "r"
-	if ls == None: ls = '-'
-	axs.plot(interval, loss,ls,lw=2.5,c=color)
-	axs.set_xlabel('Epochs')
-	axs.set_ylabel('Loss')
-	return fig, axs 
-
-def plot_hist(hist,n_start,n_interval,t=None):
-	fig , axs  = plt.subplots(1,3,figsize=(24,6))
-	
-	if t == None:
-		n_range = np.arange(len(hist['train_cost']))
-	else:
-		n_range = np.arange(t)
-
-	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['train_cost'][n_start:-1:n_interval],fig,axs[0],color = colorplate.red,ls = '-')
-	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['val_cost'][n_start:-1:n_interval],fig,axs[0],color =colorplate.blue, ls = '-')
-	axs[0].set_ylabel('Cost',font_dict)
-
-	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['train_loss'][n_start:-1:n_interval],fig,axs[1],color = colorplate.red,ls = '-')
-	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['val_loss'][n_start:-1:n_interval],fig,axs[1],color =colorplate.blue, ls = '-')
-	axs[1].set_ylabel('Loss',font_dict)
-	
-	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['train_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.red, ls = '-')
-	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['val_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.blue, ls = '-')
-	axs[2].set_ylabel('Accuracy',font_dict)
-	
-	for ax in axs:
-		ax.legend(['Train',"Validation"],prop={'size':20})
-	return fig, axs 
-
-#----------------------
-#	Main Programm
-#-----------------------
-#----------------------------------------------
-def ExamCode():
-	"""Test the functions for the assignments """
-
-	print("*"*30)
-	print("\t Exericise 1-2")
-	print("*"*30)
-	print("#"*30)
-	labels = ['airplane','automobile','bird',
-			'cat','deer','dog','frog',
-			"horse",'ship','truck']
-	
-	print(f"Testing Functions:")
-
-	# Step 1: Load data
-	X, Yenc, X_val,Y_val,X_test,Y_test = dataLoader_OneBatch()
-	# Define the feature size and label size
-	K = 10; d = 3072
-	# One-Hot encoded for Y 
-	print(f"Global K={K}, d={d}")
-
-	
-
-	#Step 4: Initialisation of the network
-	#---------------------------------------------
-	#Use the class for model implementation 
-	model = mlp(K,d,h_size=[50],lamda=0.0)
-	
-	# Step 4: Test for forward prop
-	batch_size  = 1
-	X_batch  	= X[:,:batch_size]
-	Y_batch  	= Yenc[:,:batch_size]
-	
-	# P 		= EvaluateClassifier(X_batch,W,b)
-	P 		= model.forward(X_batch)
-	print(f"INFO: Test Pred={P.shape}")
-	#---------------------------------------------
-
-
-
-	# Step 5: Cost Function
-	J,l_cross = model.cost_func(X_batch,Y_batch,return_loss=True)
-	print(f"INFO: The loss = {J}")
-
-
-	# Step 6: Examine the acc func:
-	acc = model.compute_acc(X,Yenc)
-	print(f"INFO:Accuracy Score={acc*100}%") 
-
-	model.computeGradient(X_batch,Y_batch)
-	
-	# Step 7 Compute the Gradient and compare to analytical solution 
-	compute_grad = True
-	if compute_grad: 
-
-		batch_size  = 1
-		trunc 		= 10
-		X_trunc  	= X[:trunc,:1]
-		Y_trunc  	= Yenc[:,:1]
-
-		model 		= mlp(k_=K,	d_=trunc, h_size=[50,10])	
-		h 			= 1e-5 # Given in assignment
-		
-		model.computeGradient(X_trunc,Y_trunc)
-
-
-		grad_error = {}
-
-		print("\n----Implict Method----")
-		grad_W1_n, grad_b1_n = ComputeGradsNum(X_trunc,
-											Y_trunc,
-											model,
-											h=h)
-		
-
-		
-		for il in range(1,model.num_layer+2):
-			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
-			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
-			print(f"\nComparison: Prop Error for W{il}:{ew.mean():.3e}")
-			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
-			grad_error[f"forward_b{il}"] = eb.mean().reshape(-1,)
-			grad_error[f"forward_w{il}"] = ew.mean().reshape(-1,)
-
-		
-		print("\n ----Central Method----")
-		grad_W1_n, grad_b1_n = ComputeGradsNumSlow(X_trunc,
-											Y_trunc,
-											model,
-											h=h)
-		
-
-		
-		for il in range(1,model.num_layer+2):
-			ew = Prop_Error(model.W_grad[f'W{il}'],grad_W1_n[f'W{il}'],h)
-			eb = Prop_Error(model.b_grad[f'b{il}'],grad_b1_n[f'b{il}'],h)
-			print(f"\nComparison: Prop Error for W{il}:{ew.mean():.3e}")
-			print(f"Comparison: Prop Error for B{il}:{eb.mean():.3e}")
-			grad_error[f"central_b{il}"] = eb.mean().reshape(-1,)
-			grad_error[f"central_w{il}"] = ew.mean().reshape(-1,)
-
-		df = pd.DataFrame(grad_error)
-		df.to_csv("Gradient_compute.csv",float_format="%.3e")
-##########################################
-## Run the programme DOWN Here:
-##########################################
-if __name__ == "__main__":
-
-	if (args.m == 1):
-		ExamCode()
-	# elif (args.m == 2):
-		# train_E2()
-	# elif (args.m == 3):
-		# train_E3()
-		# post_E4()
-	# elif (args.m == 4):
-		
-	else:
-		raise ValueError
+if __name__ == '__main__':
+    ## UNIT TESTING
+    # np.random.seed(0)
+    unittest.main()
