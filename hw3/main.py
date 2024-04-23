@@ -36,6 +36,7 @@ pathlib.Path('data/').mkdir(exist_ok=True)
 pathlib.Path('weights/').mkdir(exist_ok=True)
 font_dict = {'size':20,'weight':'bold'}
 fig_dict = {'bbox_inches':'tight','dpi':300}
+
 # Setup the random seed
 np.random.seed(400)
 
@@ -180,16 +181,84 @@ def make_layers_param(shapes, activations):
     return layers
 
 
+#########################################
+## I/O 
+########################################
+
+def name_case(n_s,eta_min,eta_max,
+              batch_s,n_epochs,lamda,
+              if_batch_norm,k, init_, stdev):
+	case_name = f"{if_batch_norm}BN_W&B_{k}Layer_{init_}init_{stdev:.2e}dev"+\
+                f"{batch_s}BS_{n_epochs}Epoch_"+\
+                f"{n_s}NS_{lamda:.3e}Lambda_{eta_min:.3e}MINeta_{eta_max:.3e}MAXeta"
+	return case_name
+
+def save_as_mat(model,hist,acc,name):
+	""" Used to transfer a python model to matlab """
+	import scipy.io as sio
+	sio.savemat("weights/HIST_" + name + '.mat',
+			{
+				'train_loss':np.array(hist['train_loss']),
+				'train_cost':np.array(hist['train_cost']),
+				'train_acc':np.array(hist['train_acc']),
+				'val_loss':np.array(hist['val_loss']),
+				'val_cost':np.array(hist['val_loss']),
+				'val_acc':np.array(hist['val_acc']),
+				"test_acc":acc
+				})
+	
+
+#########################################
+## Visualisation 
+#########################################
+def plot_loss(interval, loss,fig=None,axs=None,color=None,ls=None):
+	if fig==None:
+		fig, axs = plt.subplots(1,1,figsize=(6,4))
+	
+	if color == None: color = "r"
+	if ls == None: ls = '-'
+	axs.plot(interval, loss,ls,lw=2.5,c=color)
+	axs.set_xlabel('Update Steps')
+	axs.set_ylabel('Loss')
+	return fig, axs 
+
+def plot_hist(hist,n_start,n_interval,t=None):
+	fig , axs  = plt.subplots(1,3,figsize=(24,6))
+	
+	if t == None:
+		n_range = np.arange(len(hist['train_cost']))
+	else:
+		n_range = np.arange(t)
+
+	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['train_cost'][n_start:-1:n_interval],fig,axs[0],color = colorplate.red,ls = '-')
+	fig, axs[0] = plot_loss(n_range[n_start:-1:n_interval], hist['val_cost'][n_start:-1:n_interval],fig,axs[0],color =colorplate.blue, ls = '-')
+	axs[0].set_ylabel('Cost',font_dict)
+
+	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['train_loss'][n_start:-1:n_interval],fig,axs[1],color = colorplate.red,ls = '-')
+	fig, axs[1] = plot_loss(n_range[n_start:-1:n_interval],hist['val_loss'][n_start:-1:n_interval],fig,axs[1],color =colorplate.blue, ls = '-')
+	axs[1].set_ylabel('Loss',font_dict)
+	
+	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['train_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.red, ls = '-')
+	fig, axs[2] = plot_loss(n_range[n_start:-1:n_interval],hist['val_acc'][n_start:-1:n_interval],fig,axs[2],color =colorplate.blue, ls = '-')
+	axs[2].set_ylabel('Accuracy',font_dict)
+	
+	for ax in axs:
+		ax.legend(['Train',"Validation"],prop={'size':20})
+	return fig, axs 
+
 
 
 ##########################################
 ## K-layer classifier 
 ##########################################
-class mlp():
+class mlpClassifier():
     """
     A MLP classifier with mini-batch gradient descent
     """
-    def __init__(self, data, layers, alpha=0.8, if_batch_norm=False):
+    def __init__(self, data, layers, alpha=0.8, 
+                 if_batch_norm=False,
+                 init_= 'he',
+                 stdev = 1e-1):
         """
         Initialization of the model 
         Args:
@@ -197,6 +266,8 @@ class mlp():
         layers	    :   (dict) A dictionary of hyperparameters and activation function to use 
         alpha	    :   (float) initial value for moving average 
         if_batch_norm  :    (bool) IF use BatchNorm in this class
+        init_       : The method for initialization
+        stdev       : (For he only)
         """
 
         # Get data by attribute 
@@ -218,7 +289,11 @@ class mlp():
             for k, v in layer.items():
                 if k == "shape":
                     # According to the parameter we generate and initialize the W&B
-                    W, b, gamma, beta, mu_av, var_av = self._he_init(v)
+                    if init_ == 'he':
+                        W, b, gamma, beta, mu_av, var_av = self._he_init(v,stdev)
+                    elif init_ == 'xavier':
+                        W, b, gamma, beta, mu_av, var_av = self._xavier_init(v)
+
                     self.W.append(W), self.b.append(b)
                     self.gamma.append(gamma), self.beta.append(beta)
                     self.mu_av.append(mu_av), self.var_av.append(var_av)
@@ -235,10 +310,23 @@ class mlp():
 
     # Without creating object, facilitate the speed
     @staticmethod
-    def _he_init(d,stdev=1e-1):
+    def _he_init(d,stdev=1e-2):
         """He Kaiming initialization"""
 
         W      = np.random.normal(0, stdev, size=(d[0], d[1]))
+        b      = np.zeros(d[0]).reshape(d[0], 1)
+        gamma  = np.ones((d[0], 1))
+        beta   = np.zeros((d[0], 1))
+        mu_av  = np.zeros((d[0], 1))
+        var_av = np.zeros((d[0], 1))
+
+        return W, b, gamma, beta, mu_av, var_av
+    
+    @staticmethod
+    def _xavier_init(d):
+        """Xavier initialization"""
+
+        W      = np.random.normal(0, 1/np.sqrt(d[0]), size=(d[0], d[1]))
         b      = np.zeros(d[0]).reshape(d[0], 1)
         gamma  = np.ones((d[0], 1))
         beta   = np.zeros((d[0], 1))
@@ -555,7 +643,7 @@ class mlp():
             X = X[:,indices]
             Y = Y[:,indices]
             
-            for b in range(train_batch_range):
+            for b in (train_batch_range):
                 
                 j_start = (b) * batch_s
                 j_end = (b+1) * batch_s
@@ -564,17 +652,17 @@ class mlp():
                 Y_batch = Y[:, j_start:j_end]
 
                 # Update the Param
-                self.backward(self,X_batch,Y_batch, lr_sch.eta,labda)
+                self.backward(X_batch,Y_batch, lr_sch.eta,labda)
                 # Update the lr schedule
                 lr_sch.update_lr()
 
                 if lr_sch.t % batch_s == 0:
                     # Compute and record the loss func
-                    loss_train, costs_train = self.compute_cost(X, Y, labda)
+                    loss_train, costs_train = self.cost_func(X, Y, labda)
                     hist['train_cost'].append(costs_train)
                     hist['train_loss'].append(loss_train)
                     
-                    loss_val, costs_val     = self.compute_cost(self.X_val, self.Y_val, labda)
+                    loss_val, costs_val     = self.cost_func(self.X_val, self.Y_val, labda)
                     hist['val_cost'].append(costs_val)
                     hist['val_loss'].append(loss_val)
 
@@ -593,9 +681,6 @@ class mlp():
         
         self.hist = hist
         return self.hist
-
-
-
 
 
 
@@ -657,7 +742,7 @@ class TestMethods(unittest.TestCase):
                 shapes=[(50, 3072), (10, 50)],
                 activations=["relu", "softmax"])
 
-        clf = mlp(data, layers)
+        clf = mlpClassifier(data, layers)
 
         grads = clf.compute_gradients(clf.X_train, clf.Y_train, labda=0)
 
@@ -691,7 +776,7 @@ class TestMethods(unittest.TestCase):
                 shapes=[(50, trunc), (50, 50), (50, 50), (10, 50)],
                 activations=["relu", "relu", "relu", "softmax"])
 
-        clf = mlp(data,layers,if_batch_norm=False)
+        clf = mlpClassifier(data,layers,if_batch_norm=False)
 
         grads_ana = clf.compute_gradients(
                 clf.X_train[:trunc, :bs],
@@ -715,7 +800,7 @@ class TestMethods(unittest.TestCase):
                 shapes=[(50, trunc), (50, 50), (10, 50)],
                 activations=["relu", "relu", "softmax"])
 
-        clf = mlp(data, layers=layers, if_batch_norm=True)
+        clf = mlpClassifier(data, layers=layers, if_batch_norm=True)
 
         grads_ana = clf.compute_gradients(
                 clf.X_train[:trunc, :bs],
@@ -731,13 +816,167 @@ class TestMethods(unittest.TestCase):
         clf.eval_gradients(grads_ana, grads_num)
 
 
+def run_net(    num_val=5000,
+                shapes=[(50, 3072), (50, 50), (10, 50)], 
+                activations=["relu", "relu", "softmax"],
+                if_batch_norm=True,
+                init_='he',stdev=1e-1,
+                n_cycle=2,n_batch=100,
+                n_s=2250,n_epoch=90,
+                lamda=0.0,
 
+              ):
+    """
+    Run the code for training, evaluation and visualisation
+    """
+    # Step 1: Load Data
+    #-------------------------
+    data, labels = dl_Full_batch(val=num_val)
+    #-------------------------
+    
+    # Step 2: Parameter setup
+    #------------------------------
+    
+    layers = make_layers_param(
+                shapes=shapes,
+                activations=activations)
+    
+    stdev = (stdev if init_ != 'xavier' else 0 )
+    
+    print(f"General INFO: n_s={n_s}, n_cycle = {n_cycle}, n_epoch={n_epoch}")
+    lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
+    train_dict = {'batch_s':n_batch,'n_epochs':n_epoch}
+    case_name = name_case(**train_dict,**lr_dict,lamda=lamda,
+                          if_batch_norm=if_batch_norm,
+                          k=len(layers),init_=init_,stdev=stdev)
+    
+    #-------------------------------
 
+    # Step 3: Create Object 
+    #--------------------------------
+    lr_sch = lr_scheduler(**lr_dict)
+    model = mlpClassifier(data,layers,if_batch_norm=if_batch_norm,init_=init_,stdev=stdev)
+    #--------------------------------
 
+    # Step 4: Training! 
+    #--------------------------------
+    print("\n"+"#"*30)
+    print(f"Start:\t{case_name}")
+    print(f"#"*30)
+    
+    hist = model.train(X=data['X_train'],
+                Y=data['Y_train'],
+                lr_sch=lr_sch, 
+                labda = lamda,
+                **train_dict)
+    #---------------------------------
 
+    # Step 5: Evaluate
+    #---------------------------------
+    acc_test = model.compute_accuracy(model.X_test,model.y_test)
+    print(f"TEST Acc ={acc_test*100:.2f}%")
+    #---------------------------------
+	
+    # Step 6: I/O
+    #-------------------------------------
+    fig,axs = plot_hist(hist,n_start=1,n_interval=1,t=None)
+    fig.savefig(f'Figs/Loss_{case_name}.jpg',**fig_dict)
+    save_as_mat(model,hist,acc_test,name=case_name)
+    #-------------------------------------
+    
+    return acc_test
 
+def lamda_coarse_search():
+    """
+    Search for the optimal L2 regularisation term for a 3-layer MLP with BN
+    """
+    l_min, l_max 	= -5, -1 
+    n_search  		= 8
+    
+    acc_dict = {}
+    acc_dict['lambda'] = np.zeros(shape=(n_search,)).astype(np.float64)
+    acc_dict['acc'] = np.zeros(shape=(n_search,)).astype(np.float64)
+    
+    icount = 0
+    for l in (range(n_search)):
+        print(f'\nSearch At ({l+1}/{n_search})')
+        l = l_min + (l_max - l_min)*np.random.rand()
+        lamda_iter = 10**l
+        print(f"Current Lambda = {lamda_iter:.3e}")
+
+        model_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=True,
+                        init_='he',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=lamda_iter)
+        
+        acc         = run_net(**model_config)
+
+        acc_dict['lambda'][icount] = lamda_iter
+        acc_dict['acc'][icount] = acc
+        icount += 1
+    
+    df = pd.DataFrame(acc_dict)
+    df.to_csv('Coarse_Search.csv')
 
 if __name__ == '__main__':
-    ## UNIT TESTING
-    # np.random.seed(0)
-    unittest.main()
+    
+    K = 10; d = 3072
+    no_bn_3layer_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=False,
+                        init_='he',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=0.005)
+
+    bn_3layer_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=True,
+                        init_='he',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=0.005)
+    
+    no_bn_9layer_config = dict(num_val=5000,
+                        shapes=[(50, d), (30, 50), (20, 30), (20, 20), (10, 20),
+                                (10, 10), (10, 10), (10, 10), (K, 10)],
+                        activations=["relu", "relu", "relu", "relu", "relu", "relu",
+                                "relu", "relu", "softmax"],
+                        if_batch_norm=False,
+                        init_='xavier',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=0.005)
+    
+
+    bn_9layer_config = dict(num_val=5000,
+                        shapes=[(50, d), (30, 50), (20, 30), (20, 20), (10, 20),
+                                (10, 10), (10, 10), (10, 10), (K, 10)],
+                        activations=["relu", "relu", "relu", "relu", "relu", "relu",
+                                "relu", "relu", "softmax"],
+                        if_batch_norm=True,
+                        init_='he',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=0.005)
+        
+
+    
+    if args.m == 1:
+        unittest.main()
+    elif args.m == 2:
+        test_acc_nobn = run_net(**no_bn_3layer_config)
+        test_acc_bn   = run_net(**bn_3layer_config)
+
+    elif args.m == 3:
+        test_acc_nobn = run_net(**no_bn_9layer_config)
+        test_acc_bn   = run_net(**bn_9layer_config)
+
+    elif args.m == 4:
+        lamda_coarse_search()
