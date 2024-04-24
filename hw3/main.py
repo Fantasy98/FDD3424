@@ -958,6 +958,63 @@ def lamda_finer_search():
     df = pd.DataFrame(acc_dict)
     df.to_csv('Finer_Search.csv')
 
+def sensitivity_study():
+    """
+    A sensitivity study on the initialisation stdev for Weight matrices
+    
+    On BN and No-BN case
+    """
+    # Std to use for initialisation
+    sigs = [1e-1,1e-3,1e-4]
+    # Get from the finer search 
+    opt_lambda = 0.0032461338701209826
+
+    acc_dict = {}
+    acc_dict['sig'] = np.zeros(shape=(len(sigs),)).astype(np.float64)
+    acc_dict['acc_noBN'] = np.zeros(shape=(len(sigs),)).astype(np.float64)
+    acc_dict['acc_BN'] = np.zeros(shape=(len(sigs),)).astype(np.float64)
+    
+    icount = 0
+    for il, sig in enumerate(sigs):
+        print(f'\nSearch At ({il+1}/{len(sigs)})')
+        print(f"Current Std = {sig:.3e}")
+
+        model_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=True,
+                        init_='he',stdev=sig,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=opt_lambda)
+        
+        acc         = run_net(**model_config)
+
+        acc_dict['sig'][icount] = sig
+        acc_dict['acc_BN'][icount] = acc
+
+
+        model_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=False,
+                        init_='he',stdev=sig,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=opt_lambda)
+        
+        acc         = run_net(**model_config)
+
+        acc_dict['sig'][icount] = sig
+        acc_dict['acc_noBN'][icount] = acc
+
+        icount += 1
+    
+    df = pd.DataFrame(acc_dict)
+    df.to_csv('Sensitivity_Study.csv')
+
+
+
 if __name__ == '__main__':
     
     K = 10; d = 3072
@@ -1019,3 +1076,6 @@ if __name__ == '__main__':
     
     elif args.m == 5:
         lamda_finer_search()
+    
+    elif args.m ==6:
+        sensitivity_study()
