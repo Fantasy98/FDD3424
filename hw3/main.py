@@ -26,9 +26,8 @@ import unittest
 
 # Parse Arguments 
 parser = argparse.ArgumentParser()
-
 parser.add_argument('-m',default=1,type=int,help='Choose which exercise to do 1,2,3,4,5')
-args = parser.parse_args()
+args= parser.parse_args()
 
 # Mkdir 
 pathlib.Path('Figs/').mkdir(exist_ok=True)
