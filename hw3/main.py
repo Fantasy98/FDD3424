@@ -922,6 +922,42 @@ def lamda_coarse_search():
     df = pd.DataFrame(acc_dict)
     df.to_csv('Coarse_Search.csv')
 
+def lamda_finer_search():
+    """
+    Search for the optimal L2 regularisation term for a 3-layer MLP with BN
+    """
+    l_min, l_max 	= -2.5, -2 
+    n_search  		= 8
+    
+    acc_dict = {}
+    acc_dict['lambda'] = np.zeros(shape=(n_search,)).astype(np.float64)
+    acc_dict['acc'] = np.zeros(shape=(n_search,)).astype(np.float64)
+    
+    icount = 0
+    for l in (range(n_search)):
+        print(f'\nSearch At ({l+1}/{n_search})')
+        l = l_min + (l_max - l_min)*np.random.rand()
+        lamda_iter = 10**l
+        print(f"Current Lambda = {lamda_iter:.3e}")
+
+        model_config = dict(num_val=5000,
+                        shapes=[(50, d), (50, 50), (K, 50)], 
+                        activations=["relu", "relu", "softmax"],
+                        if_batch_norm=True,
+                        init_='he',stdev=1e-1,
+                        n_cycle=2,n_batch=100,
+                        n_s=2250,n_epoch=20,
+                        lamda=lamda_iter)
+        
+        acc         = run_net(**model_config)
+
+        acc_dict['lambda'][icount] = lamda_iter
+        acc_dict['acc'][icount] = acc
+        icount += 1
+    
+    df = pd.DataFrame(acc_dict)
+    df.to_csv('Finer_Search.csv')
+
 if __name__ == '__main__':
     
     K = 10; d = 3072
@@ -980,3 +1016,6 @@ if __name__ == '__main__':
 
     elif args.m == 4:
         lamda_coarse_search()
+    
+    elif args.m == 5:
+        lamda_finer_search()
