@@ -965,7 +965,7 @@ def sensitivity_study():
     """
     # Std to use for initialisation
     sigs = [1e-1,1e-3,1e-4]
-    sigs = [1e-4]
+    # sigs = [1e-4]
     # Get from the finer search 
     opt_lambda = 0.0032461338701209826
 
@@ -1027,14 +1027,71 @@ def post_sensitivity():
     # Std to use for initialisation
     sigs = [1e-1,1e-3,1e-4]
     # Get from the finer search 
-    opt_lambda = 0.0032461338701209826
+    opt_lambda = 0.005
 
     icount = 0
-
+    sig = 1e-1
     plt_bn_train = {'lw':2.5,'c':colorplate.red,"label":'Train BN'}
     plt_bn_val   = {'lw':2.5,'c':colorplate.blue,"label":'Validation BN'}
     plt_nb_train = {'lw':2.5,'c':colorplate.yellow,"label":'Train No-BN'}
     plt_nb_val   = {'lw':2.5,'c':colorplate.cyan,"label":'Validation No-BN'}
+         # With BN 
+    #----------------------------------
+    model_config = dict(
+                    k = 9,
+                    if_batch_norm=True,
+                    init_='he',stdev=sig,
+                    batch_s=100,n_s=2250,n_epochs=20,
+                    lamda=opt_lambda)
+    
+    case_name_bn = name_case(**model_config)
+    
+    d_bn        = sio.loadmat(f'weights/HIST_{case_name_bn}.mat')
+
+    # No-BN 
+    #------------------------------------
+    model_config = dict(
+                    k = 9,
+                    if_batch_norm=False,
+                    init_='xavier',stdev=0.0,
+                    batch_s=100,
+                    n_s=2250,n_epochs=20,
+                    lamda=opt_lambda)
+    
+    case_name_nb = name_case(**model_config)
+    d_nb        = sio.loadmat(f'weights/HIST_{case_name_nb}.mat')
+        
+    # Plot 
+    #-------------------------------------
+    n_range = np.arange(len(d_nb['train_cost'].flatten()))
+    n_start = 10
+    n_interval = 1 
+    fig, axs = plt.subplots(1,3,figsize = (24,6))
+    axs[0].plot(n_range[n_start:-1:n_interval], d_bn['train_cost'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+    axs[0].plot(n_range[n_start:-1:n_interval], d_bn['val_cost'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+    axs[0].plot(n_range[n_start:-1:n_interval], d_nb['train_cost'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+    axs[0].plot(n_range[n_start:-1:n_interval], d_nb['val_cost'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+    axs[0].set_ylabel('Cost',font_dict)
+    axs[0].legend(loc='upper right')
+    axs[1].plot(n_range[n_start:-1:n_interval],d_bn['train_loss'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+    axs[1].plot(n_range[n_start:-1:n_interval],d_bn['val_loss'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+    axs[1].plot(n_range[n_start:-1:n_interval],d_nb['train_loss'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+    axs[1].plot(n_range[n_start:-1:n_interval],d_nb['val_loss'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+    axs[1].set_ylabel('Loss',font_dict)
+    axs[1].legend(loc="upper right")
+    axs[2].plot(n_range[n_start:-1:n_interval],d_bn['train_acc'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+    axs[2].plot(n_range[n_start:-1:n_interval],d_bn['val_acc'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+    axs[2].plot(n_range[n_start:-1:n_interval],d_nb['train_acc'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+    axs[2].plot(n_range[n_start:-1:n_interval],d_nb['val_acc'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+    axs[2].set_ylabel('Accuracy',font_dict)
+    axs[2].legend(loc="lower right")
+    
+    fig.savefig(f'Figs/Compare_9Layer.jpg',**fig_dict)
+
+
+
+    quit()
+    
     for il, sig in enumerate(sigs):
         print(f"At ({il+1}/{len(sigs)}): Plotting Case for Stdev = {sig:.3e}")
 
@@ -1068,7 +1125,7 @@ def post_sensitivity():
         # Plot 
         #-------------------------------------
         n_range = np.arange(len(d_nb['train_cost'].flatten()))
-        n_start = 1 
+        n_start = 10
         n_interval = 1 
 
         fig, axs = plt.subplots(1,3,figsize = (24,6))
@@ -1077,21 +1134,21 @@ def post_sensitivity():
         axs[0].plot(n_range[n_start:-1:n_interval], d_nb['train_cost'].flatten()[n_start:-1:n_interval],**plt_nb_train)
         axs[0].plot(n_range[n_start:-1:n_interval], d_nb['val_cost'].flatten()[n_start:-1:n_interval],**plt_nb_val)
         axs[0].set_ylabel('Cost',font_dict)
-        axs[0].legend('upper right')
+        axs[0].legend(loc='upper right')
 
         axs[1].plot(n_range[n_start:-1:n_interval],d_bn['train_loss'].flatten()[n_start:-1:n_interval],**plt_bn_train)
         axs[1].plot(n_range[n_start:-1:n_interval],d_bn['val_loss'].flatten()[n_start:-1:n_interval],**plt_bn_val)
         axs[1].plot(n_range[n_start:-1:n_interval],d_nb['train_loss'].flatten()[n_start:-1:n_interval],**plt_nb_train)
         axs[1].plot(n_range[n_start:-1:n_interval],d_nb['val_loss'].flatten()[n_start:-1:n_interval],**plt_nb_val)
         axs[1].set_ylabel('Loss',font_dict)
-        axs[1].legend("upper right")
+        axs[1].legend(loc="upper right")
 
         axs[2].plot(n_range[n_start:-1:n_interval],d_bn['train_acc'].flatten()[n_start:-1:n_interval],**plt_bn_train)
         axs[2].plot(n_range[n_start:-1:n_interval],d_bn['val_acc'].flatten()[n_start:-1:n_interval],**plt_bn_val)
         axs[2].plot(n_range[n_start:-1:n_interval],d_nb['train_acc'].flatten()[n_start:-1:n_interval],**plt_nb_train)
         axs[2].plot(n_range[n_start:-1:n_interval],d_nb['val_acc'].flatten()[n_start:-1:n_interval],**plt_nb_val)
         axs[2].set_ylabel('Accuracy',font_dict)
-        axs[2].legend("lower right")
+        axs[2].legend(loc="lower right")
         
         fig.savefig(f'Figs/Sensitivity_{sig:.3e}.jpg',**fig_dict)
     return 
