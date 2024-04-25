@@ -798,8 +798,8 @@ class TestMethods(unittest.TestCase):
         bs    = 1
         data, labels = dl_One_batch()
         layers = make_layers_param(
-                shapes=[(50, trunc), (50, 50), (10, 50)],
-                activations=["relu", "relu", "softmax"])
+                shapes=[(50, trunc), (50, 50), (50, 50), (10, 50)],
+                activations=["relu", "relu","relu","softmax"])
 
         clf = mlpClassifier(data, layers=layers, if_batch_norm=True)
 
@@ -965,6 +965,7 @@ def sensitivity_study():
     """
     # Std to use for initialisation
     sigs = [1e-1,1e-3,1e-4]
+    sigs = [1e-4]
     # Get from the finer search 
     opt_lambda = 0.0032461338701209826
 
@@ -1030,9 +1031,10 @@ def post_sensitivity():
 
     icount = 0
 
-    plt_dict_bn_train = {'lw':2.5,'c':colorplate.red,"label":'Train BN'}
-    plt_dict_bn_val   = {'lw':2.5,'c':colorplate.blue,"label":'Val BN'}
-    plt_dict_bn       = {'lw':2.5,'c':colorplate.blue,"label":'Val BN'}
+    plt_bn_train = {'lw':2.5,'c':colorplate.red,"label":'Train BN'}
+    plt_bn_val   = {'lw':2.5,'c':colorplate.blue,"label":'Validation BN'}
+    plt_nb_train = {'lw':2.5,'c':colorplate.yellow,"label":'Train No-BN'}
+    plt_nb_val   = {'lw':2.5,'c':colorplate.cyan,"label":'Validation No-BN'}
     for il, sig in enumerate(sigs):
         print(f"At ({il+1}/{len(sigs)}): Plotting Case for Stdev = {sig:.3e}")
 
@@ -1047,6 +1049,7 @@ def post_sensitivity():
         
         case_name_bn = name_case(**model_config)
         
+        d_bn        = sio.loadmat(f'weights/HIST_{case_name_bn}.mat')
 
         # No-BN 
         #------------------------------------
@@ -1059,10 +1062,38 @@ def post_sensitivity():
                         lamda=opt_lambda)
         
         case_name_nb = name_case(**model_config)
-        
 
+        d_nb        = sio.loadmat(f'weights/HIST_{case_name_nb}.mat')
         
+        # Plot 
+        #-------------------------------------
+        n_range = np.arange(len(d_nb['train_cost'].flatten()))
+        n_start = 1 
+        n_interval = 1 
 
+        fig, axs = plt.subplots(1,3,figsize = (24,6))
+        axs[0].plot(n_range[n_start:-1:n_interval], d_bn['train_cost'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+        axs[0].plot(n_range[n_start:-1:n_interval], d_bn['val_cost'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+        axs[0].plot(n_range[n_start:-1:n_interval], d_nb['train_cost'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+        axs[0].plot(n_range[n_start:-1:n_interval], d_nb['val_cost'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+        axs[0].set_ylabel('Cost',font_dict)
+        axs[0].legend('upper right')
+
+        axs[1].plot(n_range[n_start:-1:n_interval],d_bn['train_loss'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+        axs[1].plot(n_range[n_start:-1:n_interval],d_bn['val_loss'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+        axs[1].plot(n_range[n_start:-1:n_interval],d_nb['train_loss'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+        axs[1].plot(n_range[n_start:-1:n_interval],d_nb['val_loss'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+        axs[1].set_ylabel('Loss',font_dict)
+        axs[1].legend("upper right")
+
+        axs[2].plot(n_range[n_start:-1:n_interval],d_bn['train_acc'].flatten()[n_start:-1:n_interval],**plt_bn_train)
+        axs[2].plot(n_range[n_start:-1:n_interval],d_bn['val_acc'].flatten()[n_start:-1:n_interval],**plt_bn_val)
+        axs[2].plot(n_range[n_start:-1:n_interval],d_nb['train_acc'].flatten()[n_start:-1:n_interval],**plt_nb_train)
+        axs[2].plot(n_range[n_start:-1:n_interval],d_nb['val_acc'].flatten()[n_start:-1:n_interval],**plt_nb_val)
+        axs[2].set_ylabel('Accuracy',font_dict)
+        axs[2].legend("lower right")
+        
+        fig.savefig(f'Figs/Sensitivity_{sig:.3e}.jpg',**fig_dict)
     return 
 
 
@@ -1126,6 +1157,7 @@ if __name__ == '__main__':
 
     elif args.mode == 4:
         lamda_coarse_search()
+         
     
     elif args.mode == 5:
         lamda_finer_search()

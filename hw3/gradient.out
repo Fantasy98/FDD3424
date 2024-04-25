@@ -8,24 +8,29 @@ INFO: Checking layer:1
 The relative error for layer 2 W: 0
 The relative error for layer 2 b: 0
 The relative error for layer 2 gamma: 0
-The relative error for layer 2 beta: 1
+The relative error for layer 2 beta: 0
 INFO: Checking layer:2
 The relative error for layer 3 W: 0
-The relative error for layer 3 b: 8.22668e-11
+The relative error for layer 3 b: 0
 The relative error for layer 3 gamma: 0
-The relative error for layer 3 beta: 0
+The relative error for layer 3 beta: 1
+INFO: Checking layer:3
+The relative error for layer 4 W: 0
+The relative error for layer 4 b: 8.22668e-11
+The relative error for layer 4 gamma: 0
+The relative error for layer 4 beta: 0
 IF USE BN: False
 INFO: Checking layer:0
-The relative error for layer 1 W: 1.63941e-07
-The relative error for layer 1 b: 8.19529e-09
+The relative error for layer 1 W: 9.60203e-08
+The relative error for layer 1 b: 9.02473e-09
 INFO: Checking layer:1
-The relative error for layer 2 W: 4.35181e-07
-The relative error for layer 2 b: 2.10428e-08
+The relative error for layer 2 W: 2.07903e-07
+The relative error for layer 2 b: 5.93039e-09
 INFO: Checking layer:2
-The relative error for layer 3 W: 1.75866e-06
-The relative error for layer 3 b: 4.19017e-09
+The relative error for layer 3 W: 4.68475e-07
+The relative error for layer 3 b: 4.33103e-10
 INFO: Checking layer:3
-The relative error for layer 4 W: 3.25184e-08
-The relative error for layer 4 b: 2.33932e-10
+The relative error for layer 4 W: 8.25169e-08
+The relative error for layer 4 b: 2.62837e-10
 INFO: TEST The basic function utilities
 IF USE BN: False
