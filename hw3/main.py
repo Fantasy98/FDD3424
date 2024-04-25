@@ -18,15 +18,15 @@ import scipy.io as sio
 import pandas as pd 
 import time
 import pathlib
-import argparse
 from matplotlib import ticker as ticker
 # Dictionary for layer. cache, etc
 from collections import OrderedDict
 import unittest
+import argparse 
 
 # Parse Arguments 
 parser = argparse.ArgumentParser()
-parser.add_argument('-m',default=1,type=int,help='Choose which exercise to do 1,2,3,4,5')
+parser.add_argument("-m","--mode",default=1,type=int,help='Choose which exercise to do 1,2,3,4,5')
 args= parser.parse_args()
 
 # Mkdir 
@@ -184,9 +184,11 @@ def make_layers_param(shapes, activations):
 ## I/O 
 ########################################
 
-def name_case(n_s,eta_min,eta_max,
-              batch_s,n_epochs,lamda,
-              if_batch_norm,k, init_, stdev):
+def name_case(
+            if_batch_norm, k,init_, stdev,
+            n_s,batch_s,n_epochs,lamda,
+            eta_min=1e-5,eta_max=1e-1):
+    
 	case_name = f"{if_batch_norm}BN_W&B_{k}Layer_{init_}init_{stdev:.2e}dev"+\
                 f"{batch_s}BS_{n_epochs}Epoch_"+\
                 f"{n_s}NS_{lamda:.3e}Lambda_{eta_min:.3e}MINeta_{eta_max:.3e}MAXeta"
@@ -822,9 +824,7 @@ def run_net(    num_val=5000,
                 init_='he',stdev=1e-1,
                 n_cycle=2,n_batch=100,
                 n_s=2250,n_epoch=90,
-                lamda=0.0,
-
-              ):
+                lamda=0.0,):
     """
     Run the code for training, evaluation and visualisation
     """
@@ -846,8 +846,8 @@ def run_net(    num_val=5000,
     lr_dict = {"n_s":n_s,"eta_min":1e-5,"eta_max":1e-1} 
     train_dict = {'batch_s':n_batch,'n_epochs':n_epoch}
     case_name = name_case(**train_dict,**lr_dict,lamda=lamda,
-                          if_batch_norm=if_batch_norm,
-                          k=len(layers),init_=init_,stdev=stdev)
+                        if_batch_norm=if_batch_norm,
+                        k=len(layers),init_=init_,stdev=stdev)
     
     #-------------------------------
 
@@ -973,11 +973,15 @@ def sensitivity_study():
     acc_dict['acc_noBN'] = np.zeros(shape=(len(sigs),)).astype(np.float64)
     acc_dict['acc_BN'] = np.zeros(shape=(len(sigs),)).astype(np.float64)
     
+    # Traning Loop
+    #-------------------------------------------
     icount = 0
     for il, sig in enumerate(sigs):
         print(f'\nSearch At ({il+1}/{len(sigs)})')
         print(f"Current Std = {sig:.3e}")
 
+        # With BN 
+        #----------------------------------
         model_config = dict(num_val=5000,
                         shapes=[(50, d), (50, 50), (K, 50)], 
                         activations=["relu", "relu", "softmax"],
@@ -987,12 +991,13 @@ def sensitivity_study():
                         n_s=2250,n_epoch=20,
                         lamda=opt_lambda)
         
-        acc         = run_net(**model_config)
+        acc_bn         = run_net(**model_config)
 
-        acc_dict['sig'][icount] = sig
-        acc_dict['acc_BN'][icount] = acc
-
-
+        acc_dict['sig'][icount]     = sig
+        acc_dict['acc_BN'][icount]  = acc_bn
+        
+        # No-BN 
+        #------------------------------------
         model_config = dict(num_val=5000,
                         shapes=[(50, d), (50, 50), (K, 50)], 
                         activations=["relu", "relu", "softmax"],
@@ -1004,13 +1009,62 @@ def sensitivity_study():
         
         acc         = run_net(**model_config)
 
-        acc_dict['sig'][icount] = sig
+        acc_dict['sig'][icount]      = sig
         acc_dict['acc_noBN'][icount] = acc
 
+        print(f"For BN Case Acc = {acc_bn*100:.3f}%")
+        print(f"For No-BN Case Acc = {acc*100:.3f}%")
         icount += 1
-    
+    #-----------------------------------------------
     df = pd.DataFrame(acc_dict)
     df.to_csv('Sensitivity_Study.csv')
+
+def post_sensitivity():
+    """
+    Compare the plot by merging results together 
+    """
+    # Std to use for initialisation
+    sigs = [1e-1,1e-3,1e-4]
+    # Get from the finer search 
+    opt_lambda = 0.0032461338701209826
+
+    icount = 0
+
+    plt_dict_bn_train = {'lw':2.5,'c':colorplate.red,"label":'Train BN'}
+    plt_dict_bn_val   = {'lw':2.5,'c':colorplate.blue,"label":'Val BN'}
+    plt_dict_bn       = {'lw':2.5,'c':colorplate.blue,"label":'Val BN'}
+    for il, sig in enumerate(sigs):
+        print(f"At ({il+1}/{len(sigs)}): Plotting Case for Stdev = {sig:.3e}")
+
+        # With BN 
+        #----------------------------------
+        model_config = dict(
+                        k = 3,
+                        if_batch_norm=True,
+                        init_='he',stdev=sig,
+                        batch_s=100,n_s=2250,n_epochs=20,
+                        lamda=opt_lambda)
+        
+        case_name_bn = name_case(**model_config)
+        
+
+        # No-BN 
+        #------------------------------------
+        model_config = dict(
+                        k = 3,
+                        if_batch_norm=False,
+                        init_='he',stdev=sig,
+                        batch_s=100,
+                        n_s=2250,n_epochs=20,
+                        lamda=opt_lambda)
+        
+        case_name_nb = name_case(**model_config)
+        
+
+        
+
+    return 
+
 
 
 
@@ -1060,21 +1114,22 @@ if __name__ == '__main__':
         
 
     
-    if args.m == 1:
+    if args.mode == 1:
         unittest.main()
-    elif args.m == 2:
+    elif args.mode == 2:
         test_acc_nobn = run_net(**no_bn_3layer_config)
         test_acc_bn   = run_net(**bn_3layer_config)
 
-    elif args.m == 3:
+    elif args.mode == 3:
         test_acc_nobn = run_net(**no_bn_9layer_config)
         test_acc_bn   = run_net(**bn_9layer_config)
 
-    elif args.m == 4:
+    elif args.mode == 4:
         lamda_coarse_search()
     
-    elif args.m == 5:
+    elif args.mode == 5:
         lamda_finer_search()
     
-    elif args.m ==6:
-        sensitivity_study()
+    elif args.mode ==6:
+        # sensitivity_study()
+        post_sensitivity()
