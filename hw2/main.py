@@ -1524,7 +1524,7 @@ def post_E7():
 	fig , axs  = plt.subplots(1,3,figsize=(24,6))
 
 	n_start = 0 
-	n_interval = 1
+	n_interval = 25
 	n_range = np.arange(0, n_epoch * N_sample,n_batch**2)
 	print(len(n_range))
 
@@ -1567,7 +1567,7 @@ if __name__ == "__main__":
 		# train_E6()
 		post_E6()
 	elif (args.m==7):
-		train_E7()
+		# train_E7()
 		post_E7()
 	else:
 		raise ValueError
