@@ -1,0 +1,16 @@
+Summary: U = (100, 80); V =(80, 100); W = (100, 100); b = (100, 1), c = (80, 1)
+INFO: Checking Gradients computation 
+The mean relative error of W = 2.315e-06
+The mean relative error of V = 4.667e-06
+The mean relative error of U = 2.028e-07
+The mean relative error of b = 6.329e-08
+The mean relative error of c = 2.029e-09
+INFO: Epoch = 2/10 Complete!
+INFO: Epoch = 3/10 Complete!
+INFO: Epoch = 4/10 Complete!
+INFO: Epoch = 5/10 Complete!
+INFO: Epoch = 6/10 Complete!
+INFO: Epoch = 7/10 Complete!
+INFO: Epoch = 8/10 Complete!
+INFO: Epoch = 9/10 Complete!
+INFO: Epoch = 10/10 Complete!
