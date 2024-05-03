@@ -335,11 +335,11 @@ def main():
     e,n,epoch = 0,0,0  
 
     # Epochs 
-    Epochs = 10 
+    Epochs = 10
 
     # Loading data 
 
-    data = read_data('goblet_book.txt')
+    data = read_data('data/goblet_book.txt')
 
     # RNN 
     model  = RNN(data)
@@ -377,7 +377,9 @@ def main():
 
         
         # Compuet the smooth loss
+        # Initialize the loss
         if n == 0 and epoch ==1 : smooth_loss = loss 
+        # Compute the smooth loss in recursive way 
         smooth_loss = 0.999 * smooth_loss + (1-0.999)*loss
         loss_hist.append(smooth_loss)
 
@@ -385,16 +387,17 @@ def main():
         if n == 0 and epoch == 1: model.relative_grad_error(x,y,hprev)
 
         # Print Loss by verbose: 
-        if n % 200 == 0: print(f'At Iteration {n}\t Smooth Loss = {smooth_loss:.3e}')
+        if n % 500 == 0: print(f'Iter={n}; Smooth Loss={smooth_loss:.3e}')
 
         # Print Syn text 
-        if n % 500 == 0:
+        if n % 10000 == 0:
 
             txt_gen = model.syn_txt(hprev,x[0],200)
 
-            print(f"\n At Iter={n}, Loss = {smooth_loss:.3e}; The Synthesized txt:\n {txt_gen}")
+            print(f"\n At Epoch = {epoch} Iter={n}, Loss = {smooth_loss:.3e}; \n The Synthesized txt:\n {txt_gen}")
 
-            with open(f"Epoch_{epoch}_Iter{n}.txt",'w') as w:
+            with open(f"txt_out/Epoch_{epoch}_Iter{n}.txt",'w') as w:
+                w.write(f"Smooth Loss: {smooth_loss}\n")
                 w.write(txt_gen)
             w.close()
         
@@ -406,12 +409,26 @@ def main():
         e += model.N 
         n += 1
 
+        # Early Stopping Schedule 
+        if smooth_loss <=40.0:
+            print(f"We find the optimal smooth loss at: {n}, Quit Loop")
+            break
+#--------------------------------------------------
+
+    print(f"INFO: Training End, Writting the final 1000 outputs")
+    ## Generate a final long one 
+    txt_gen = model.syn_txt(hprev,x[0],1000)
+    with open(f"txt_out/Final_{epoch}_Iter{n}.txt",'w') as w:
+        w.write(f"Smooth Loss: {smooth_loss}\n")
+        w.write(txt_gen)
+    w.close()
+
     fig, axs = plt.subplots(1,1,figsize = (14,4))
     lenloss = len(loss_hist)
     n_range = np.arange(lenloss)
     
-    axs.plot(n_range,loss_hist,c = colorplate.red, lw=3)
-    axs.set_xlabel('Epoch', fontdict=font_dict)
+    axs.plot(n_range[::10000],loss_hist[::10000],c = colorplate.red, lw=3)
+    axs.set_xlabel('Iteration', fontdict=font_dict)
     axs.set_ylabel('Smooth  Loss', fontdict=font_dict)
     
     fig.savefig('Loss_evo.jpg',**fig_dict)
