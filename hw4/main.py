@@ -397,8 +397,13 @@ def main():
             print(f"\n At Epoch = {epoch} Iter={n}, Loss = {smooth_loss:.3e}; \n The Synthesized txt:\n {txt_gen}")
 
             with open(f"txt_out/Epoch_{epoch}_Iter{n}.txt",'w') as w:
+                w.write('-'*30 + '\n')
+                w.write(f'Iter={n}\n')                
+                w.write('-'*30 + "\n")
                 w.write(f"Smooth Loss: {smooth_loss}\n")
-                w.write(txt_gen)
+                w.write('-'*30 + '\n')
+                w.write(txt_gen + "\n")
+                w.write('-'*30)
             w.close()
         
         ## Update Param: 
@@ -410,7 +415,7 @@ def main():
         n += 1
 
         # Early Stopping Schedule 
-        if smooth_loss <=40.0:
+        if smooth_loss <=39.5:
             print(f"We find the optimal smooth loss at: {n}, Quit Loop")
             break
 #--------------------------------------------------
