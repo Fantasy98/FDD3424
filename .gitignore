@@ -1,4 +1,7 @@
 hw1/data
 hw2/data
 hw3/data
+project/data
+project/pod_modes/POD-m-1-n25999.npz
+project/pod_modes/POD-m20-n25999.npz
 *.tar*
