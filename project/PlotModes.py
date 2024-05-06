@@ -13,6 +13,7 @@ import cmocean as cmo
 from matplotlib import cm
 import seaborn as sns
 from scipy import signal
+import os 
 # Defalut 
 cmp = "RdBu"
 # cmp = "YlGnBu_r"
@@ -50,7 +51,7 @@ print(f"Generate the spatial coordinate, shape of X and Y are {x.shape, y.shape}
 
 latent_dim  =   10 
 
-base_dir    =   "/scratch/yuningw/Cylinder_ROM/"
+base_dir    =   os.getcwd() + '/'
 
 load_pod    =   base_dir + "08_POD/"
 case_pod    =   f"POD-m{latent_dim}-n25999"

@@ -44,7 +44,7 @@ plt.rc("legend",fontsize= 12, handletextpad = 0.3)
 plt.rc("xtick",labelsize = 14)
 plt.rc("ytick",labelsize = 14)
 
-baseDir     =   "/scratch/yuningw/beta_vae_cylinder/"
+baseDir     =   os.getcwd() + '/'
 save_matrix_to =   baseDir + "10_Post_Figs/Corr/"
 
 ################################################################

@@ -12,6 +12,7 @@ from scipy.stats import gaussian_kde
 from utils.configs import VAE_custom as args
 import matplotlib as mpl
 import os
+import shutil
 import pandas as pd
 import argparse
 
@@ -42,8 +43,8 @@ plt.rc('ytick', labelsize = 21)
 font_dict = {"weight":"bold","size":20}
 
 
-baseDir     =   "/scratch/yuningw/Cylinder_ROM/"
-save_pdf_to =   baseDir + "10_Post_Figs/PDF/"
+baseDir     =   os.getcwd() + '/'
+save_pdf_to =   baseDir + "Figs/PDF/"
 # Arguments for FileID
 # We first investigate the effect of beta
 

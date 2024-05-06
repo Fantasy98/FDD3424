@@ -36,8 +36,8 @@ font_dict = {"weight":"bold","size":22}
 
 #load CSV
 
-base_dir        =   "/scratch/yuningw/beta_vae_cylinder/"
-save_line_path  =   "10_Post_Figs/Lines/" 
+base_dir        =   os.getcwd() + '/'
+save_line_path  =   "Figs/Lines/" 
 
 df = pd.read_csv(base_dir+"vae_results.csv")
 
@@ -66,7 +66,7 @@ df_c = df[  (df["Type"]         ==  vae_type)&
             (df["beta"]         <=  betas[-1]) & 
             (df["beta"]         >=  betas[0])
              ]
-
+df_c = df_c.drop_duplicates(["beta"])
 df_c = df_c.sort_values(by= ["beta"],ascending=True)
 print(f"The filtered DataFrame is:\n{df_c.head()}")
 # The line plots setup 
@@ -128,6 +128,7 @@ df_c = df[
             (df["Epoch"]        ==  Epochs)&
             (df["beta"]         ==  betas)
              ]
+df_c = df_c.drop_duplicates(["latent_dim"])
 df_c = df_c.sort_values(by= ["latent_dim"],ascending=True)
 print(f"The filtered DataFrame is:\n{df_c.head()}")
 # The line plots setup 
@@ -186,6 +187,7 @@ df_c = df[
             (df["Epoch"]        ==  Epochs)&
             (df["beta"]         ==  betas)
              ]
+df_c = df_c.drop_duplicates(["Nfield"])
 df_c = df_c.sort_values(by= ["Nfield"],ascending=True)
 
 print(f"The filtered DataFrame is:\n{df_c.head()}")

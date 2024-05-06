@@ -38,9 +38,9 @@ font_dict = {"weight":"bold","size":22}
 
 base_dir        =   os.getcwd()
 base_dir        += "/"
-save_line_path  =   "10_Post_Figs/Lines/" 
+save_line_path  =   "Figs/Lines/" 
 
-df = pd.read_csv(base_dir+"vae_results4Beta_copy.csv")
+df = pd.read_csv(base_dir+"vae_resultsAllBeta.csv")
 
 print(f"INFO: The CSV file has been loaded, {df.info()}")
 
@@ -62,8 +62,8 @@ print("#"*30)
 print("Investigate the Effect of Beta")
 # Use condition plot for investigate the effect of beta :
 
-# vae_type    =   ["v35" , "v4",  "v45", "v5", "v55"]
-vae_type    =   ["v4", "v5"]
+vae_type    =   ["v35" , "v4",  "v45", "v5", "v55"]
+# vae_type    =   ["v4", "v5"]
 
 df_cs  = []
 
@@ -88,22 +88,21 @@ for ind, vae_tp  in enumerate(vae_type):
 ls = [ "-", "--", "-.", ":", "-"]
 mk = ["o", "v", "s", "P", "X"]
 
+Betas = [   
+        [ 0.0001, 0.0005, 0.001, 0.0025, 0.005],
+        [ 0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01], 
+        [0.0001, 0.0005, 0.001, 0.0025, 0.005,  0.01], 
+        [ 0.001, 0.0025, 0.005,0.01],
+        [ 0.01]
+        ]
+
+
 # Betas = [   
-#         [ 0.0001, 0.0005, 0.001, 0.0025, 0.005],
-#         [ 0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01], 
-#         [0.0001, 0.0005, 0.001, 0.0025, 0.005,  0.01], 
-#         [ 0.001, 0.0025, 0.005,0.01],
-#         [ 0.01]
+       
+#         [ 0.001, 0.0025, 0.005,  0.01], 
+#         [ 0.001, 0.0025, 0.005,  0.01], 
          
 #                        ]
-
-
-Betas = [   
-       
-        [ 0.001, 0.0025, 0.005,  0.01], 
-        [ 0.001, 0.0025, 0.005,  0.01], 
-         
-                       ]
 
 
 ###############################################################
