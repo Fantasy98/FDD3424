@@ -68,8 +68,8 @@ print("Load the VAE modes")
 latent_dim  =   cfg.latent_dim
 
 base_dir    =   "/scratch/yuningw/Cylinder_ROM/"
-mode_dir    =   base_dir  + "03_Mode/"
-pod_dir     =   base_dir  + "08_POD/"
+mode_dir    =   base_dir  + "latent_modes/"
+pod_dir     =   base_dir  + "pod_modes/"
 vae_type    =   ["v35" , "v4",  "v45", "v5", "v55"]
 
 param_dict  = {}

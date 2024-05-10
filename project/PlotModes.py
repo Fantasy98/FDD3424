@@ -53,7 +53,7 @@ latent_dim  =   10
 
 base_dir    =   os.getcwd() + '/'
 
-load_pod    =   base_dir + "08_POD/"
+load_pod    =   base_dir + "pod_modes/"
 case_pod    =   f"POD-m{latent_dim}-n25999"
 
 with np.load( load_pod +  case_pod + ".npz") as pod_file:

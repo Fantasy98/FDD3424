@@ -6,7 +6,7 @@ using the ran mode only!!
 
 import h5py
 import numpy as np
-
+import os 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import cmocean as cmo
@@ -67,11 +67,11 @@ print("Load the VAE modes")
 
 latent_dim  =   cfg.latent_dim
 
-base_dir        =   "/scratch/yuningw/Cylinder_ROM/"
-mode_dir        =   base_dir  + "03_Mode/"
-pod_dir         =   base_dir  + "08_POD/"
-save_spmode_fig   =   base_dir  + "10_Post_Figs/SpModes/"
-save_tpmode_fig   =   base_dir  + "10_Post_Figs/TempModes/"
+base_dir        =   os.path.getcwd() + '/'
+mode_dir        =   base_dir  + "latent_modes/"
+pod_dir         =   base_dir  + "pod_modes/"
+save_spmode_fig   =   base_dir  + "Figs/SpModes/"
+save_tpmode_fig   =   base_dir  + "Figs/TempModes/"
 
 
 vae_type    =   ["v35" , "v4",  "v45", "v5", "v55"]

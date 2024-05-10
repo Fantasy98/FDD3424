@@ -31,6 +31,7 @@ Args        =   parser.parse_args()
 
 #Plot config
 colorlist= ["#A64036","#F0C2A2","#4182A4","#354E6B"]
+
 colorlist.reverse()
 china_color = colors.LinearSegmentedColormap.from_list('china_color',colorlist, N=100)
 plt.register_cmap(cmap=china_color)
@@ -45,7 +46,8 @@ plt.rc("xtick",labelsize = 14)
 plt.rc("ytick",labelsize = 14)
 
 baseDir     =   os.getcwd() + '/'
-save_matrix_to =   baseDir + "10_Post_Figs/Corr/"
+save_matrix_to =   baseDir + "Figs/Corr/"
+modedata_path = baseDir + 'latent_modes/'
 
 ################################################################
 # Effect of beta
@@ -57,9 +59,13 @@ if Args.beta:
 
     num_fields      =   25999
     latent_dim      =   10
-    betas           =   [0.001, 0.0025, 0.005, 0.01]
     Epoch           =   300
-    vae_type        =   "v5"
+    vae_type        =   "v4"
+    if vae_type == 'v5':
+        betas           =   [0.001, 0.0025, 0.005, 0.01]
+    elif vae_type == 'v4':
+        betas           =   [0.001, 50e-4, 100e-4, 500e-4]
+
     batch_size      =   128
     earlystop       =   False
     patience        =   0
@@ -68,14 +74,14 @@ if Args.beta:
     Mats = []; detRs = []
     for beta in betas:
 
-        filesID   =  f"{vae_type}_{int( num_fields )}n_{latent_dim}d_{int(beta*10000)}e-4beta_"+\
+        filesID   =  f"Rank_Mode_{vae_type}_{int( num_fields )}n_{latent_dim}d_{int(beta*10000)}e-4beta_"+\
                     f"{args.block_type}conv_{len(args.filters)}Nf_{args.filters[-1]}Fdim_{args.linear_dim}Ldim"+\
                     f"{args.act_conv}convact_{args.act_linear}_" +\
                     f"{int(args.lr *1e5)}e-5LR_{int(args.w_decay*1e5)}e-5Wd"+\
                     f"{batch_size}bs_{Epoch}epoch_{earlystop}ES_{patience}P"
 
 
-        modes_filepath = baseDir+ "03_Mode/"+filesID +"modes"+ ".npz"
+        modes_filepath = modedata_path +filesID +  ".npz"
 
         print(f"Loading case: \n{filesID}")
 

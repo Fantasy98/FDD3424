@@ -58,7 +58,7 @@ class VAE_custom:
     block_type  = "original" # "original", "bn_original", "deep", "res" "deepres"
 
     # Dimension of linear layer after flatten 
-    linear_dim  = 128
+    linear_dim  = 512
     
 
     #activation fuction for conv layer and linear layer
