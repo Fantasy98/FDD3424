@@ -92,6 +92,80 @@ class BetaVAE(nn.Module):
 
 
 
+###############################
+# Vanilla AutoEncoder 
+###############################
+
+class autoEncoder(nn.Module):
+    """
+    nn.Module for vanilla AutoEncoder  architecture and models 
+    Args:  
+        zdim        :   The dimension of latent space
+        knsize      : kernel size of Convolution layer
+        filters     : A list of number of filters used in Transpose Convblock
+        block_type  : The type of ConvBlock used in architecture 
+        lineardim   : The dimension of linear layer 
+        act_conv    : The activation fuction for convblock
+        act_linear  : The activation fuction for linear layer 
+    
+    func: 
+        rec_loss()        : Compute the reconstruction loss via MSE
+        kl_loss()         : Compute the kl-divergence loss 
+        vae_loss()        : Compute the total loss = E_rec + beta * Kl-div
+        reparameterize()  : Implement reparameterisation trick
+        forward()         : Forward propergation of the model
+
+            
+    """    
+    def __init__(self,
+                    zdim,knsize,beta,
+                    filters             = [256,128,64,32,16,1],
+                    block_type          = "deep",
+                    lineardim           = 128, 
+                    act_conv            = "elu",
+                    act_linear          = "elu"
+                 ) -> None:
+        super(BetaVAE,self).__init__()
+        self.zdim       = zdim
+        
+        self.encoder    = fix_encoder(zdim,knsize,
+                                filters      =   filters,
+                                block_type   =   block_type, 
+                                lineardim    =   lineardim,
+                                act_conv     =   act_conv,
+                                act_linear   =   act_linear)
+        
+        comp_shape = self.encoder.compute_compression(filters=filters[1:])
+        print(f"The size after compression is {comp_shape}")
+        filters.reverse()
+        self.decoder = decoder(zdim,knsize,
+                                compress_shape =   comp_shape,
+                                filters        =   filters,
+                                block_type     =   block_type,
+                                lineardim      =   lineardim,
+                                act_conv       =   act_conv,
+                                act_linear     =   act_linear)
+    
+        self.mse = nn.MSELoss()
+    
+
+    def rec_loss(self,pred,y):
+        loss = self.mse(pred,y)
+        return loss
+    
+    
+    def vae_loss(self,rec_loss):
+        loss = rec_loss 
+        return torch.mean(loss)
+    
+
+    def forward(self,x):
+        x    = self.encoder(x)
+        x    = self.decoder(x)
+        return x
+
+
+
 
 
 if __name__ == "__main__":
@@ -107,6 +181,14 @@ if __name__ == "__main__":
     model = BetaVAE(zdim= z_dim, 
                     knsize= knsize, 
                     beta= 1e-3, 
+                    filters= filters,
+                    lineardim= 128,
+                    act_conv=act_conv,
+                    act_linear= act_linear)
+    
+    model = autoEncoder(zdim= z_dim, 
+                    knsize= knsize, 
+                    beta = 0,
                     filters= filters,
                     lineardim= 128,
                     act_conv=act_conv,
