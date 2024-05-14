@@ -60,12 +60,16 @@ if Args.beta:
     num_fields      =   25999
     latent_dim      =   10
     Epoch           =   300
-    vae_type        =   "v4"
+    vae_type        =   "v45"
     if vae_type == 'v5':
         betas           =   [0.001, 0.0025, 0.005, 0.01]
+    elif vae_type == 'v45':
+        betas           =   [5e-4,10e-4, 25e-4, 50e-4]
     elif vae_type == 'v4':
         betas           =   [0.001, 50e-4, 100e-4, 500e-4]
-
+    elif vae_type == 'v35':
+        betas           =   [5e-4, 0.001, 50e-4, 100e-4]
+    
     batch_size      =   128
     earlystop       =   False
     patience        =   0

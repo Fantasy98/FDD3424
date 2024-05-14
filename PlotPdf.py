@@ -60,25 +60,34 @@ if Args.beta:
 
     num_fields      =   25999
     latent_dim      =   10
-    betas           =   [0.001, 0.0025, 0.005, 0.01]
     Epoch           =   300
     vae_type        =   f"v{Args.vae}"
     batch_size      =   128
     earlystop       =   False
     patience        =   0
 
+    if vae_type == 'v5':
+        betas           =   [0.001, 0.0025, 0.005, 0.01]
+    elif vae_type == 'v45':
+        betas           =   [5e-4,10e-4, 25e-4, 50e-4]
+    elif vae_type == 'v4':
+        betas           =   [0.001, 50e-4, 100e-4, 500e-4]
+    elif vae_type == 'v35':
+        betas           =   [5e-4, 0.001, 50e-4, 100e-4]
+    
     #compute detR
     modes = []
     for beta in betas:
 
-        filesID   =  f"{vae_type}_{int( num_fields )}n_{latent_dim}d_{int(beta*10000)}e-4beta_"+\
+        filesID   =  f"Rank_Mode_{vae_type}_{int( num_fields )}n_{latent_dim}d_{int(beta*10000)}e-4beta_"+\
                     f"{args.block_type}conv_{len(args.filters)}Nf_{args.filters[-1]}Fdim_{args.linear_dim}Ldim"+\
                     f"{args.act_conv}convact_{args.act_linear}_" +\
                     f"{int(args.lr *1e5)}e-5LR_{int(args.w_decay*1e5)}e-5Wd"+\
                     f"{batch_size}bs_{Epoch}epoch_{earlystop}ES_{patience}P"
 
 
-        modes_filepath = baseDir+ "03_Mode/"+filesID +"modes"+ ".npz"
+        # modes_filepath = baseDir+ "latent_modes/"+filesID +"modes"+ ".npz"
+        modes_filepath = baseDir+ "latent_modes/"+filesID+".npz"
 
         print(f"Loading case: \n{filesID}")
 
