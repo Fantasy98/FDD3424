@@ -6,7 +6,7 @@ using the ran mode only!!
 
 import h5py
 import numpy as np
-
+import os 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import cmocean as cmo
@@ -15,7 +15,7 @@ import seaborn as sns
 from scipy import signal
 from utils.configs import VAE_custom as cfg 
 # Defalut 
-cmp = "RdBu_r"
+cmp = "RdBu"
 # cmp = "YlGnBu_r"
 plt.set_cmap(cmp)
 plt.rc("font",  family      = "serif")
@@ -67,7 +67,7 @@ print("Load the VAE modes")
 
 latent_dim  =   cfg.latent_dim
 
-base_dir    =   "/scratch/yuningw/Cylinder_ROM/"
+base_dir    =   os.getcwd() + "/"
 mode_dir    =   base_dir  + "latent_modes/"
 pod_dir     =   base_dir  + "pod_modes/"
 vae_type    =   ["v35" , "v4",  "v45", "v5", "v55"]
@@ -76,11 +76,13 @@ param_dict  = {}
 param_dict['v35']   = [ 0.0001, 0.0005, 0.005]
 param_dict['v4']    = [ 0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01]
 param_dict['v45']   = [0.0001, 0.0005, 0.001, 0.0025, 0.005,  0.01],
-param_dict['v5']    = [ 0.001, 0.0025, 0.005,0.01],
+# param_dict['v5']    = [ 0.001, 0.0025, 0.005,0.01],
+param_dict['v5']    = [0.005]
 param_dict['v55']   = [ 0.01],
 
 plot_dict           = {}
 plot_dict['v35']    = [ r"$1 \times 10^{-4}$", r"$5 \times 10^{-4}$", r"$5 \times 10^{-3}$"]
+plot_dict['v5']    = [r"$5 \times 10^{-3}$"]
 
 
 
@@ -138,9 +140,11 @@ fs      =   1
 tfreq   =   0.005
 latent_dim =  latent_dim
 
-fig, axs    =   plt.subplots(   len(Temporal_Modes) , latent_dim, 
+fig, axs    =   plt.subplots(   
+                                len(Temporal_Modes) , 
+                                latent_dim, 
                                 sharex= True,sharey=True,
-                                figsize= (latent_dim*2, len(Temporal_Modes)))
+                                figsize= (latent_dim*2, len(Temporal_Modes)*1.8))
 
 for i  in range(len(Temporal_Modes)):
     for j in range(latent_dim):
@@ -158,16 +162,19 @@ for i  in range(len(Temporal_Modes)):
         axs[-1,j].set_xlabel("x/h",fontsize = 18)
         axs[i,0].set_ylabel("z/h",fontsize = 18)
         if i != len(Temporal_Modes)-1:
-            # axs[i,latent_dim//2].set_title(f"Arch 1 " + r"$\beta$" +" = " + plot_dict[cfg.model][i] )
-            axs[i,-1].annotate( r"${\beta}$" + " = " + plot_dict[cfg.model][i], xy=(1.2, 0.5), xytext=(0, 5),
-                                    xycoords='axes fraction', textcoords='offset points',
-                                     ha='center', va='baseline', fontsize = 25)
+            
+            # axs[i,-1].annotate( r"${\beta}$" + " = " + plot_dict[cfg.model][i], xy=(0, 0.5), xytext=(0.5, 5),
+            #                         xycoords='axes fraction', textcoords='offset points',
+            #                         ha='center', va='baseline', fontsize = 25)
+            axs[i,latent_dim//2].set_title( "Arch 4: " r"${\beta}$" + " = " + plot_dict[cfg.model][i])
             
         else:
+            
             axs[i,latent_dim//2].set_title(f"POD")
-plt.subplots_adjust(hspace=0.1, wspace=0.01)
-plt.savefig("Spatialmode.jpg", bbox_inches="tight")
+plt.subplots_adjust(hspace=0.03, wspace=0.05)
+plt.savefig("Figs/SpModes/Spatialmode.jpg", bbox_inches="tight")
 # plt.subplots_adjust(hspace=0.01)
+
 
 #########
 # Temporal modes
@@ -178,7 +185,7 @@ tfreq   =   0.005
 
 fig, axs    =   plt.subplots(   len(Temporal_Modes) , latent_dim, 
                                 sharex= True,sharey=True,
-                                figsize= (12.5*2,latent_dim//2))
+                                figsize= (16.5*2,latent_dim//2))
 
 for i  in range(len(Temporal_Modes)):
     for j in range(latent_dim):
@@ -187,7 +194,7 @@ for i  in range(len(Temporal_Modes)):
 
         if i != len(Temporal_Modes)-1:
             axs[i,j].plot(f, Pxx_den,lw =2.5, c = line_beta2.blue)
-            axs[i,latent_dim//2].set_title(f"Arch 1 " + r"$\beta$" +" = " + plot_dict[cfg.model][i] )
+            axs[i,latent_dim//2].set_title(f"Arch 4: " + r"$\beta$" +" = " + plot_dict[cfg.model][i] )
         
         else:
             axs[i,j].plot(f, Pxx_den,lw =2.5, c = line_beta2.black)
@@ -198,5 +205,5 @@ for i  in range(len(Temporal_Modes)):
         axs[-1,j].set_xlabel(r'${St}$')
         annot_max(f,Pxx_den,ax = axs[i,j])
         
-plt.savefig("Temporalmode.jpg", bbox_inches="tight")
+plt.savefig("Figs/TempModes/Temporalmode.jpg", bbox_inches="tight")
 

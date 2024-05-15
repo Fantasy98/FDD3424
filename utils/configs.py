@@ -16,7 +16,7 @@ class VAE_config:
         patience = 0
 
 class VAE_custom:
-    model       = "v35" # Name Arch1 as v4 and v5 as Arch2 v6 for an Arch between v4 and v5 
+    model       = "v5" # Name Arch1 as v4 and v5 as Arch2 v6 for an Arch between v4 and v5 
 
     beta        = 0.005 # The regularisation [0.001, 0.0025, 0.005, 0.01]
     latent_dim  = 10 # Latent-space dimension 
