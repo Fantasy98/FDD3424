@@ -67,7 +67,7 @@ print("Load the VAE modes")
 
 latent_dim  =   cfg.latent_dim
 
-base_dir        =   os.path.getcwd() + '/'
+base_dir        =   os.getcwd() + '/'
 mode_dir        =   base_dir  + "latent_modes/"
 pod_dir         =   base_dir  + "pod_modes/"
 save_spmode_fig   =   base_dir  + "Figs/SpModes/"

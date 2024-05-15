@@ -204,11 +204,14 @@ ax2.spines["left"].set_color(line_beta2.blue)
 ax2.spines["right"].set_color(line_beta2.red)
 
 
+Num_Fields  =   [int(26000*0.25), int(26000*0.5), int(26000*0.75), int(26000*1)]
 
 if vae_type == "v4":
   mk = "o"; ls = "-"
 else:
   mk = "v"; ls = "--"
+
+
 
 ax.plot(Num_Fields, df_c["E_k"],
         linestyle = ls, marker = mk,
