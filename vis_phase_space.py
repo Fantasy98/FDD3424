@@ -254,39 +254,40 @@ icount  = 1
 for i in range(0, len(xyz),100):
     fig, axs = plt.subplots(
                         1, 
-                        1,
-                        # sharex=True, sharey= True,
-                        figsize =(6,6),
+                        2,
+                        sharex=True, sharey= True,
+                        figsize =(10,6),
                         subplot_kw={'projection':'3d'},
                         )
-
-    axs.plot(
+    axs[0].set_title('POD')
+    axs[1].set_title(r"$\beta$"+"-VAE")
+    axs[0].plot(
                     pod[:i,0],
                     pod[:i,1],
                     pod[:i,2],
                     **plot_cfg1
                     )
-    axs.plot(
+    axs[1].plot(
                     z_mean[:i,0],
                     z_mean[:i,1],
                     z_mean[:i,2],
                     **plot_cfg2
                     )
-    
-    axs.set_xlabel(r"$z_1$",labelpad = 15)
-    axs.set_ylabel(r"$z_2$",labelpad = 15)
-    axs.set_zlabel(r"$z_3$",labelpad = 15)
-    axs.set_xlim(min(pod[:,0].min(),z_mean[:,0].min()),max(pod[:,0].max(),z_mean[:,0].max()) )
-    axs.set_ylim(min(pod[:,1].min(),z_mean[:,1].min()),max(pod[:,1].max(),z_mean[:,1].max()) )
-    axs.set_zlim(min(pod[:,2].min(),z_mean[:,2].min()),max(pod[:,2].max(),z_mean[:,2].max()) )
-    elev, azim = 15,30
+    for i in range(2):
+        axs[i].set_xlabel(r"$z_1$",labelpad = 15)
+        axs[i].set_ylabel(r"$z_2$",labelpad = 15)
+        axs[i].set_zlabel(r"$z_3$",labelpad = 15)
+        axs[i].set_xlim(min(pod[:,0].min(),z_mean[:,0].min()),max(pod[:,0].max(),z_mean[:,0].max()) )
+        axs[i].set_ylim(min(pod[:,1].min(),z_mean[:,1].min()),max(pod[:,1].max(),z_mean[:,1].max()) )
+        axs[i].set_zlim(min(pod[:,2].min(),z_mean[:,2].min()),max(pod[:,2].max(),z_mean[:,2].max()) )
+        elev, azim = 15,30
 
-    axs.view_init(elev, azim)
+        axs[i].view_init(elev, azim)
     lenString = len(str(xyz.shape[0]))
     lenil     = len(str(icount))
     nofile = "0"*(( lenString- lenil)) + str(icount) 
     icount +=1 
-    axs.legend(['POD',r"$\beta$"+"-VAE"])
+    # axs.legend(['POD',r"$\beta$"+"-VAE"])
     fig.savefig(f"Figs/Animation/VAE_VS_POD_{nofile}.jpg",
                 dpi=300)
     plt.clf()
