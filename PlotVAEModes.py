@@ -77,12 +77,12 @@ param_dict['v35']   = [ 0.0001, 0.0005, 0.005]
 param_dict['v4']    = [ 0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01]
 param_dict['v45']   = [0.0001, 0.0005, 0.001, 0.0025, 0.005,  0.01],
 # param_dict['v5']    = [ 0.001, 0.0025, 0.005,0.01],
-param_dict['v5']    = [0.005]
+param_dict['v5']    = [0, 0.005]
 param_dict['v55']   = [ 0.01],
 
 plot_dict           = {}
 plot_dict['v35']    = [ r"$1 \times 10^{-4}$", r"$5 \times 10^{-4}$", r"$5 \times 10^{-3}$"]
-plot_dict['v5']    = [r"$5 \times 10^{-3}$"]
+plot_dict['v5']    = ["AutoEncoder", r"${\beta}$" + " = " + r"$5 \times 10^{-3}$"]
 
 
 
@@ -166,12 +166,12 @@ for i  in range(len(Temporal_Modes)):
             # axs[i,-1].annotate( r"${\beta}$" + " = " + plot_dict[cfg.model][i], xy=(0, 0.5), xytext=(0.5, 5),
             #                         xycoords='axes fraction', textcoords='offset points',
             #                         ha='center', va='baseline', fontsize = 25)
-            axs[i,latent_dim//2].set_title( "Arch 4: " r"${\beta}$" + " = " + plot_dict[cfg.model][i])
+            axs[i,latent_dim//2].set_title( "Arch 4: " + plot_dict[cfg.model][i])
             
         else:
             
             axs[i,latent_dim//2].set_title(f"POD")
-plt.subplots_adjust(hspace=0.03, wspace=0.05)
+plt.subplots_adjust(hspace=0.005, wspace=0.05)
 plt.savefig("Figs/SpModes/Spatialmode.jpg", bbox_inches="tight")
 # plt.subplots_adjust(hspace=0.01)
 
@@ -184,8 +184,8 @@ tfreq   =   0.005
 
 
 fig, axs    =   plt.subplots(   len(Temporal_Modes) , latent_dim, 
-                                sharex= True,sharey=True,
-                                figsize= (16.5*2,latent_dim//2))
+                                sharex= True,sharey=False,
+                                figsize= (16.5*2,latent_dim//2 * 1.5))
 
 for i  in range(len(Temporal_Modes)):
     for j in range(latent_dim):
@@ -200,10 +200,13 @@ for i  in range(len(Temporal_Modes)):
             axs[i,j].plot(f, Pxx_den,lw =2.5, c = line_beta2.black)
             axs[i,latent_dim//2].set_title(f"POD")
             axs[i,j].set_yticks([1000])
+        
+        if j!=0: axs[i,j].set_yticks([])
+        
         axs[i,j].set_xlim([0,1])
-
+        
         axs[-1,j].set_xlabel(r'${St}$')
         annot_max(f,Pxx_den,ax = axs[i,j])
-        
-plt.savefig("Figs/TempModes/Temporalmode.jpg", bbox_inches="tight")
+fig.subplots_adjust(hspace=0.5, wspace=0.05)
+fig.savefig("Figs/TempModes/Temporalmode.jpg", bbox_inches="tight")
 

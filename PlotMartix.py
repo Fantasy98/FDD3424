@@ -26,6 +26,7 @@ parser      =   argparse.ArgumentParser("To specify which Correlation Matrix to 
 parser.add_argument("--beta",   "-b",action="store_true",help="Plot the effect of beta")
 parser.add_argument("--dim",    "-d",action="store_true",help="Plot the effect of latent dimension")
 parser.add_argument("--nfields","-n",action="store_true",help="Plot the effect of number of training data")
+parser.add_argument("--single","-s",action="store_true",help="Plot the effect of number of training data")
 Args        =   parser.parse_args()
 
 
@@ -267,3 +268,62 @@ if Args.nfields:
     print("#"*30)
 
 
+if Args.single: 
+    print("Make comparison with VAE and AE")
+    num_fields      =   25999
+    latent_dims     =   10
+    Epoch           =   300
+    vae_type        =   "v5"
+    batch_size      =   128
+    earlystop       =   False
+    latent_dim      =   10
+    patience        =   0
+    betas = [0.0, 5e-3]
+    Mats = []; detRs = []
+    
+    for beta in betas:
+
+        filesID   =  f"{vae_type}_{int(num_fields)}n_{latent_dim}d_{int(beta*10000)}e-4beta_"+\
+                    f"{args.block_type}conv_{len(args.filters)}Nf_{args.filters[-1]}Fdim_{args.linear_dim}Ldim"+\
+                    f"{args.act_conv}convact_{args.act_linear}_" +\
+                    f"{int(args.lr *1e5)}e-5LR_{int(args.w_decay*1e5)}e-5Wd"+\
+                    f"{batch_size}bs_{Epoch}epoch_{earlystop}ES_{patience}P"
+
+
+        modes_filepath = baseDir+ "latent_modes/"+filesID +"modes"+ ".npz"
+
+        print(f"Loading case: \n{filesID}")
+
+        d       =   np.load(modes_filepath)
+        z_mean  =   np.array(d["z_mean"])
+
+        corr_matrix_latent = abs(np.corrcoef(z_mean.T))
+        detR    =   np.linalg.det(corr_matrix_latent)
+        print(f"In order to confirm the case ,we confirm the detR is {np.round(detR,4)}")
+        Mats.append(corr_matrix_latent)
+        detRs.append(detR)
+    
+    fig, axs    = plt.subplots(1,len(Mats),figsize=(8, 4),sharex=True,sharey=True)
+    axs         = axs.flatten()
+    for ind, ax in enumerate(axs):
+        corr_matrix_latent = Mats[ind]
+        cb                 = ax.imshow(corr_matrix_latent)
+        ax.set_aspect("equal")
+        if betas[ind] != 0.0:
+            ax.set_title("Arch 4: " + r"$\beta$" + f" ={beta}" +"\n" + r"${{\rm det}_{\mathbf{R}}}$" +f" = {np.round(100*detRs[ind],2)}")
+        else:
+            ax.set_title("Arch 4: AutoEncoder" +"\n" + r"${{\rm det}_{\mathbf{R}}}$" +f" = {np.round(100*detRs[ind],2)}")
+        ax.set_xticks(range(latent_dim))
+        ax.set_yticks(range(latent_dim))
+        ax.set_xticklabels(range(1,latent_dim+1))
+        ax.set_yticklabels(range(1,latent_dim+1))
+        ax.set_xlabel(r"$z_i$",fontdict = font_dict )
+        
+    axs[0].set_ylabel(r"$z_i$",fontdict = font_dict )
+    cax = fig.add_axes([axs[-1].get_position().x1+0.03,axs[-1].get_position().y0,0.02,0.65])
+    cbar = fig.colorbar(cb, cax=cax)
+    cbar.ax.locator_params(nbins = 5,tight=True)
+    
+    plt.savefig( save_matrix_to +"Corr_" + "AE_VS_VAE",
+                bbox_inches = "tight",
+                dpi=300)
