@@ -135,7 +135,7 @@ if Args.dim:
     print("Plotting the PDF for effect of Latent dimension:")
 
     num_fields      =   25999
-    latent_dims     =   [10,15,20]
+    latent_dims     =   [10,15,20,25]
     beta            =   0.0025
     Epoch           =   300
     vae_type        =   "v5"
@@ -154,7 +154,8 @@ if Args.dim:
                     f"{batch_size}bs_{Epoch}epoch_{earlystop}ES_{patience}P"
 
 
-        modes_filepath = baseDir+ "03_Mode/"+filesID +"modes"+ ".npz"
+        modes_filepath = modedata_path +filesID + 'modes' +  ".npz"
+
 
         print(f"Loading case: \n{filesID}")
         d       =   np.load(modes_filepath)
