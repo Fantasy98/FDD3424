@@ -190,6 +190,6 @@ axs.set_ylabel(f"z{6+1}",fontsize='large')
 axs.set_aspect('equal',"box")
 axs.grid(visible=True,markevery=1,color='gainsboro', zorder=1)
 plt.subplots_adjust(wspace= 0.1)
-plt.savefig( f"Figs/Phase_Space/Pmap_VAE_POD_5V7.jpg", bbox_inches="tight")
+plt.savefig( f"Figs/Phase_Space/Pmap_VAE_POD_5V7.jpg", bbox_inches="tight",dpi=300)
 
 
